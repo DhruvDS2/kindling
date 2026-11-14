@@ -1,0 +1,167 @@
+{
+  "name": "Kindling weekly alerts",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "weeks", "weeksInterval": 1 }] },
+        "triggerTimes": { "item": [{ "hour": 8, "minute": 0 }] }
+      },
+      "id": "schedule",
+      "name": "Every Monday 8am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = new Date(); const pad = n => String(n).padStart(2,'0'); return [{ json: { as_of: `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}` } }];"
+      },
+      "id": "today",
+      "name": "Build as_of date",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:8000/slack/pql?as_of={{ $json.as_of }}",
+        "options": {}
+      },
+      "id": "pql_api",
+      "name": "GET /slack/pql",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 180]
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:8000/slack/health?as_of={{ $json.as_of }}",
+        "options": {}
+      },
+      "id": "health_api",
+      "name": "GET /slack/health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 420]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.blocks.length }}",
+              "rightValue": 1,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ]
+        }
+      },
+      "id": "pql_has_results",
+      "name": "Any PQL flags?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 180]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.blocks.length }}",
+              "rightValue": 1,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ]
+        }
+      },
+      "id": "health_has_results",
+      "name": "Any health flags?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 420]
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "webhookUri": "={{ $env.SLACK_WEBHOOK_SALES }}",
+        "blocksUi": "={{ JSON.stringify($json.blocks) }}"
+      },
+      "id": "slack_sales",
+      "name": "Post to #sales",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [1120, 120],
+      "credentials": { "slackApi": { "id": "slack_cred", "name": "Slack webhook" } }
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.CLAY_WEBHOOK_URL }}",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "school_id",
+              "value": "={{ $json.school_id }}"
+            },
+            {
+              "name": "name",
+              "value": "={{ $json.name }}"
+            },
+            {
+              "name": "pql_score",
+              "value": "={{ $json.pql_score }}"
+            },
+            {
+              "name": "top_reason",
+              "value": "={{ $json.reasons[0] }}"
+            },
+            {
+              "name": "as_of",
+              "value": "={{ $json.as_of }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clay_webhook",
+      "name": "Enrich in Clay (optional)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 240],
+      "notes": "Production plug-in point. Set CLAY_WEBHOOK_URL env var to activate. Sends flagged school to a Clay table for firmographic enrichment (district size, decision-maker lookup). Disabled on synthetic data — Clay can't enrich fake school names."
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "webhookUri": "={{ $env.SLACK_WEBHOOK_CS }}",
+        "blocksUi": "={{ JSON.stringify($json.blocks) }}"
+      },
+      "id": "slack_cs",
+      "name": "Post to #customer-success",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [1120, 360],
+      "credentials": { "slackApi": { "id": "slack_cred", "name": "Slack webhook" } }
+    }
+  ],
+  "connections": {
+    "Every Monday 8am": { "main": [[{ "node": "Build as_of date", "type": "main", "index": 0 }]] },
+    "Build as_of date": {
+      "main": [
+        [{ "node": "GET /slack/pql", "type": "main", "index": 0 }],
+        [{ "node": "GET /slack/health", "type": "main", "index": 0 }]
+      ]
+    },
+    "GET /slack/pql": { "main": [[{ "node": "Any PQL flags?", "type": "main", "index": 0 }]] },
+    "GET /slack/health": { "main": [[{ "node": "Any health flags?", "type": "main", "index": 0 }]] },
+    "Any PQL flags?": { "main": [[{ "node": "Post to #sales", "type": "main", "index": 0 }, { "node": "Enrich in Clay (optional)", "type": "main", "index": 0 }], []] },
+    "Any health flags?": { "main": [[{ "node": "Post to #customer-success", "type": "main", "index": 0 }], []] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "meta": { "templateCredsSetupCompleted": true },
+  "pinData": {}
+}
