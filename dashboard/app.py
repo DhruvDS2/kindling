@@ -30,8 +30,15 @@ st.markdown(f"""
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
   html, body, .stApp {{ background-color: {PAPER} !important; color: {INK}; font-family: Inter, sans-serif; }}
   section[data-testid="stSidebar"] {{ background-color: {INK} !important; }}
-  section[data-testid="stSidebar"] * {{ color: {PAPER} !important; }}
+  section[data-testid="stSidebar"] p,
+  section[data-testid="stSidebar"] span,
+  section[data-testid="stSidebar"] label,
+  section[data-testid="stSidebar"] h1,
+  section[data-testid="stSidebar"] h2,
+  section[data-testid="stSidebar"] h3 {{ color: {PAPER} !important; }}
   section[data-testid="stSidebar"] .stCaption {{ color: {NAIVE_COL} !important; }}
+  section[data-testid="stSidebar"] pre,
+  section[data-testid="stSidebar"] code {{ background: #2d2c29 !important; color: #e8e4dc !important; }}
 
   /* school cards */
   .school-card {{
