@@ -30,6 +30,29 @@ N_FREE_SCHOOLS = 120
 N_PAID_SCHOOLS = 80
 PRICE_PER_SEAT = 400  # illustrative, USD per teacher seat per year
 
+# Feature windows
+WINDOW_SCHOOL_DAYS = 10   # instructional days in the main rolling window
+WINDOW_CAL_DAYS = 14      # calendar days for the naive baseline
+
+# PQL scoring weights
+PQL_BREADTH_MAX = 30      # points for active teacher breadth, capped at 4 teachers
+PQL_BREADTH_CAP = 4
+PQL_DEPTH_MAX = 35        # points for "aha" teachers (students really using it), capped at 3
+PQL_DEPTH_CAP = 3
+PQL_ADMIN_POINTS = 15     # admin signed up → buying committee forming
+PQL_MOMENTUM_POINTS = 10  # teacher count growing vs prior window
+PQL_BUILD_NO_USE = -10    # tutors built but students not using them
+PQL_AHA_SESSIONS = 20     # student sessions in one window for a teacher to count as "aha"
+PQL_READY_THRESHOLD = 60  # score at or above this → "Ready"
+
+# Health scoring weights
+HEALTH_TEACHER_TREND_MAX = 40    # teacher retention vs prior window
+HEALTH_SESSION_TREND_MAX = 35    # session retention vs prior window
+HEALTH_RENEWAL_BUFFER_MAX = 15   # urgency buffer (full points when renewal is far away)
+HEALTH_SEAT_UTIL_MAX = 10        # active teachers as share of licensed seats
+HEALTH_RENEWAL_BUFFER_DAYS = 45  # flag this many days before renewal
+HEALTH_RISK_THRESHOLD = 50       # score below this → "At risk"
+
 
 def all_days():
     d = START

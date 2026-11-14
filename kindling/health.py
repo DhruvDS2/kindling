@@ -11,15 +11,14 @@ from __future__ import annotations
 
 import pandas as pd
 
-RISK_THRESHOLD = 50   # below this → "At risk"
+from kindling import config as C
 
-# points — a fully healthy school scores 100
-TEACHER_TREND_MAX = 40    # active teacher retention vs prior window
-SESSION_TREND_MAX = 35    # student session retention vs prior window
-RENEWAL_BUFFER_MAX = 15   # urgency: more points when renewal is far away (time to act)
-SEAT_UTILISATION_MAX = 10 # active teachers as a share of licensed seats
-
-RENEWAL_BUFFER_DAYS = 45  # the target: flag this many days before renewal
+RISK_THRESHOLD       = C.HEALTH_RISK_THRESHOLD
+TEACHER_TREND_MAX    = C.HEALTH_TEACHER_TREND_MAX
+SESSION_TREND_MAX    = C.HEALTH_SESSION_TREND_MAX
+RENEWAL_BUFFER_MAX   = C.HEALTH_RENEWAL_BUFFER_MAX
+SEAT_UTILISATION_MAX = C.HEALTH_SEAT_UTIL_MAX
+RENEWAL_BUFFER_DAYS  = C.HEALTH_RENEWAL_BUFFER_DAYS
 
 
 def _teacher_retention(cur, prev) -> float:

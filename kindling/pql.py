@@ -10,14 +10,16 @@ from __future__ import annotations
 
 import pandas as pd
 
-READY_THRESHOLD = 60
+from kindling import config as C
 
-# points
-BREADTH_MAX, BREADTH_CAP = 30, 4     # active teachers, capped at 4
-DEPTH_MAX, DEPTH_CAP = 35, 3         # "aha" teachers (students really using it), capped at 3
-ADMIN_POINTS = 15                    # an admin signed up: the buying committee is forming
-MOMENTUM_POINTS = 10                 # more active teachers than the previous window
-BUILD_NO_USE_PENALTY = -10           # lots of tutors built, students barely using them
+READY_THRESHOLD     = C.PQL_READY_THRESHOLD
+BREADTH_MAX         = C.PQL_BREADTH_MAX
+BREADTH_CAP         = C.PQL_BREADTH_CAP
+DEPTH_MAX           = C.PQL_DEPTH_MAX
+DEPTH_CAP           = C.PQL_DEPTH_CAP
+ADMIN_POINTS        = C.PQL_ADMIN_POINTS
+MOMENTUM_POINTS     = C.PQL_MOMENTUM_POINTS
+BUILD_NO_USE_PENALTY = C.PQL_BUILD_NO_USE
 
 
 def _reasons(row) -> list[tuple[float, str]]:

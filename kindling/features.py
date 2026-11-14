@@ -18,9 +18,9 @@ import pandas as pd
 
 from kindling import config as C
 
-WINDOW_SCHOOL_DAYS = 10
-WINDOW_CAL_DAYS = 14
-AHA_SESSIONS = 20  # student sessions in one window for a teacher to count as "aha" (~2 per school day)
+WINDOW_SCHOOL_DAYS = C.WINDOW_SCHOOL_DAYS
+WINDOW_CAL_DAYS = C.WINDOW_CAL_DAYS
+AHA_SESSIONS = C.PQL_AHA_SESSIONS
 
 _SQL = """
 WITH as_of_dates AS (
