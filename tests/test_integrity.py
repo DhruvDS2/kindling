@@ -9,7 +9,7 @@ import pytest
 
 from kindling import config as C
 from kindling import health, pql
-from kindling.features import account_features, health_features
+from kindling.features import account_features
 
 ENGINE_MODULES = ["features.py", "pql.py", "health.py"]  # add api.py as it lands
 
@@ -59,8 +59,23 @@ def test_pql_score_shape(db_path):
 
 def test_health_score_shape(db_path):
     con = duckdb.connect(str(db_path), read_only=True)
-    scored = health.score(health_features(con, [date(2026, 2, 2)]))
+    scored = health.score(account_features(con, [date(2026, 2, 2)]))
     assert scored.health_score.between(0, 100).all()
     assert scored.reasons.apply(len).le(3).all()
     assert set(scored.status) <= {"At risk", "Healthy"}
     assert (scored.plan_at_start == "paid").all()
+
+
+def test_health_fewer_false_alarms_than_naive(db_path):
+    """School-day windows must produce fewer false alarms than calendar windows on Jan 5."""
+    from kindling.features import account_features as af
+    con = duckdb.connect(str(db_path), read_only=True)
+    as_of = date(2026, 1, 5)  # first Monday back after winter break — the trap date
+    sd_scored  = health.score(af(con, [as_of], mode="school_days"))
+    cal_scored = health.naive_health(af(con, [as_of], mode="calendar"))
+    sd_alarms  = (sd_scored.status  == "At risk").sum()
+    cal_alarms = (cal_scored.status == "At risk").sum()
+    assert sd_alarms < cal_alarms, (
+        f"School-day windows ({sd_alarms}) should flag fewer schools than "
+        f"calendar windows ({cal_alarms}) on {as_of}"
+    )
