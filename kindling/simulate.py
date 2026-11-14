@@ -145,14 +145,14 @@ class World:
             self.simulate_usage(sid, t, j, float(self.rng.uniform(0.45, 0.7)), 0.5,
                                 float(self.rng.uniform(2, 4) if quiet else self.rng.uniform(3, 7)),
                                 self.ramp(j, 14))
-        third = joins[min(1, k - 1)]
+        second_colleague = joins[min(1, k - 1)]
         if self.rng.random() < 0.8:
-            admin_day = third + timedelta(days=int(self.rng.integers(7, 22)))
+            admin_day = second_colleague + timedelta(days=int(self.rng.integers(7, 22)))
             a = self.add_teacher(sid, admin_day, role="admin")
             self.simulate_usage(sid, a, admin_day, 0.15, 0.0, 0.0)
             base = admin_day
         else:
-            base = third + timedelta(days=21)
+            base = second_colleague + timedelta(days=21)
         if archetype == "converter":
             self._convert(sid, base + timedelta(days=int(self.rng.integers(14, 46))))
 
