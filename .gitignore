@@ -2,3 +2,6 @@ data/*.duckdb
 __pycache__/
 .pytest_cache/
 .venv/
+.env
+*.pyc
+.DS_Store
