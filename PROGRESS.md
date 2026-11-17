@@ -57,7 +57,24 @@
   - PQL: LR gets 100% recall / 48% precision vs rules 67% recall / 64% precision. Rules more precise.
   - Health: LR catches more churners (55% vs 27%) but 88% false alarm rate vs 0% for rules. LR doesn't understand breaks.
 
+- **2026-11-16:** n8n workflow wired end-to-end and tested live.
+  - Slack workspace created (#sales, #customer-success). Both webhooks tested and confirmed working.
+  - Anthropic API key added, stored securely as an n8n Header Auth credential (not hardcoded in JSON).
+  - Full pipeline ran successfully: score → flag → Claude drafts email → Slack message posts to #sales.
+  - Gmail compose button added to #sales Slack message — clicking it opens Gmail with subject and body pre-filled, ready to send with one click.
+  - Email prompt redesigned around proven SDR templates: under 90 words, 3rd-grade reading level, one question only, no links/attachments, write like you talk. Outputs `SUBJECT:` / `BODY:` format to avoid JSON parsing issues.
+  - Removed the "AI cold-email out of scope" decision — it is now implemented and working.
+
+- **2026-11-16:** Synthetic data upgraded to look realistic; pandas `.name` bug fixed.
+  - `simulate.py`: each school now has a real US city + state (tied to region), a district name for district-type schools (e.g. "Philadelphia Public Schools"), a named contact (first + last), a job title (Principal / Curriculum Director / Technology Coordinator / Director of Instruction), and a generated `.edu` email address.
+  - `features.py`: SQL SELECT extended to pull `city`, `state`, `district`, `contact_name`, `contact_title`, `contact_email` from the schools table so they flow through the entire pipeline.
+  - `api.py`: Fixed a silent bug where `r.name` on a pandas row returns the *index label* (a number like 42) instead of the school name column. Fixed to `r["name"]`. Both `/pql` and `/health` endpoints now return all contact fields.
+  - `dashboard/app.py`: School cards now show a second meta line — e.g. `Sarah Johnson · Principal · Fresno, CA`.
+  - `n8n/kindling_weekly.json`: Email prompt now passes contact name, title, and location to Claude, and the opening line uses the contact's first name ("Hi Ashley"). Slack blocks show `_Fresno, CA · Ashley White (Principal)_` under each school name.
+  - Database regenerated: 200 schools, 1,760 teachers, 347,551 events — all names and contacts look real.
+
 ## What's left
+- Re-import latest `n8n/kindling_weekly.json` to pick up contact-personalised prompt and Slack block changes (then re-attach Header Auth credential to "Draft email with Claude" node)
 - 3.4 Clay webhook node (optional production plug-in)
 - 4.2 Static HTML report
 - 4.5 Demo video
