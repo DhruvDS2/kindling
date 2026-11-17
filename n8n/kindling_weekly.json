@@ -149,7 +149,7 @@
     },
     {
       "parameters": {
-        "url": "https://hooks.slack.com/services/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",
+        "url": "YOUR_SLACK_WEBHOOK_SALES",
         "method": "POST",
         "sendBody": true,
         "contentType": "raw",
@@ -165,7 +165,7 @@
     },
     {
       "parameters": {
-        "url": "https://hooks.slack.com/services/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",
+        "url": "YOUR_SLACK_WEBHOOK_CS",
         "method": "POST",
         "sendBody": true,
         "contentType": "raw",
