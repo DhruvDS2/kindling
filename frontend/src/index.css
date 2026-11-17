@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --paper: #FAF8F5;
+  --nav: #F5F2ED;
+  --card: #FFFFFF;
+  --ink: #1C1B19;
+  --body: #3A3833;
+  --muted: #6B6760;
+  --line: #E4E0D9;
+  --row-divider: #EFEBE5;
+  --break-shade: #EFEBE5;
+  --ember: #E2572B;
+  --ember-chip-bg: #FCE9E1;
+  --ember-chip-text: #A63A18;
+  --risk: #B42318;
+  --risk-chip-bg: #FBE7E5;
+  --steady: #2F7D5B;
+  --naive: #9A958C;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  text-align: left;
+}
+
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.skeleton {
+  background-color: var(--line);
+  border-radius: 4px;
+  animation: skeletonPulse 1.5s ease-in-out infinite;
+}
