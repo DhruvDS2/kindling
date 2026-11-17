@@ -103,6 +103,55 @@
   - Full pipeline confirmed live: n8n fires → Kindling API → Claude Haiku drafts email → Slack #sales receives ranked school list + AI email + Gmail deeplink button. #customer-success correctly skipped (no health alerts).
   - README rewritten with full architecture diagram, results tables, setup instructions, API endpoint table, data model, GTM workflow story, and limits section.
 
+- **2026-11-17 (session 2):** Major UI overhaul + 3 n8n workflows + outreach tracking shipped.
+
+  **Monday Brief rewritten — now fully interactive:**
+  - Stat tiles are clickable: Ready to Buy navigates to that screen, At Risk navigates to At Risk, etc.
+  - NRR tile now shows real calculation from actual ARR data ($624K total, 4 at-risk schools) with inline breakdown panel (retained ARR, at-risk ARR, projected upside). Previously was a fake hardcoded 104%.
+  - Watch list always shows 3 schools — fills with lowest-health schools if fewer than 3 genuinely at risk, flagged `_watch` so CS knows the difference.
+  - School rows in the watch list are clickable and navigate to the relevant screen with the drawer auto-opened.
+  - Prospects card at bottom of brief shows top 3 cold leads.
+
+  **Prospects screen built (new tab):**
+  - Top 10 prioritized cold leads scored on 4 signals: contact on file (40pts), district school (25pts), paying customers in same state (25pts), prior engagement (10pts).
+  - Expandable signal breakdown per school. Click a row → OutreachBar appears.
+  - OutreachBar: Slack (via n8n → #sales), Gmail compose deeplink, LinkedIn contact search, Twitter/X school search.
+  - Cold email draft (Claude-style template) for PQL=0 schools; dormant draft for PQL 1–19.
+  - Dormant schools (PQL 1–19) shown in a separate group below Top 10.
+
+  **Health threshold fixed:**
+  - `HEALTH_RISK_THRESHOLD` raised from 50 → 70 in `config.py`. Previous threshold meant no school ever scored below it, so watch list showed "Healthy" schools. Now 4 schools (scores 51, 56, 68, 69) genuinely show as At Risk.
+
+  **Channel routing fixed:**
+  - `AccountDetail` drawer now routes Ready schools → #sales, everything else → #customer-success. Previously all non-PQL schools were routed to #sales incorrectly.
+
+  **New FastAPI endpoints:**
+  - `GET /outreach/stale?days=14` — schools contacted N+ days ago with no PQL improvement (powers follow-up workflow)
+  - `GET /prospects/top10` — top 10 cold leads ranked by priority signals
+  - `POST /notify/slack` — now also writes to `data/outreach_log.json` after sending
+  - `GET /pipeline/funnel`, `GET /snapshot/pql/schools`, `POST /snapshot/pql` — pipeline tracking
+
+  **Pipeline screen built:** Funnel view of all schools by stage (Cold → Dormant → Active → Ready → Converted).
+
+  **3 n8n workflows now live (all Published):**
+  - `kindling_weekly.json` ("Kindling notify (manual)", created 14 Nov) — Mon 8am brief. Full chain: GET /pql → Claude drafts email → Slack #sales + #cs. Confirmed working end-to-end with Anthropic API key.
+  - `kindling_notify.json` ("Kindling notify (manual)", created 17 Nov) — on-demand webhook. UI sends to this, routes to #sales or #customer-success based on school status.
+  - `kindling_followup.json` ("Kindling follow-up reminders") — Mon 9am. Fetches stale leads from API, posts nudge to #sales if any schools contacted 14+ days ago with no PQL movement.
+
+  **Outreach tracking:** `data/outreach_log.json` created. Every Slack send from the UI logs school ID, name, channel, date, and PQL at time of contact.
+
+  **GitHub committed and pushed:**
+  - 31 files, 5631 insertions. All new screens, workflows, endpoints, outreach log.
+  - GitHub push protection blocked Slack webhook URLs in new JSON files — redacted to placeholders for GitHub, real URLs restored locally.
+  - Pre-commit hook added at `.git/hooks/pre-commit` — blocks commits containing live Slack webhook URLs or Anthropic keys going forward.
+  - README rewritten: 3 workflows documented, full setup instructions for new contributors, all API endpoints listed.
+
+  **Anthropic API key confirmed:**
+  - Stored as "Header Auth account" credential in n8n (created 16 Nov). Never in any file.
+  - Confirmed working: weekly workflow ran manually end-to-end, Claude-drafted email appeared in #sales Slack message.
+
+  **Localtunnel URLs updated in n8n** (all 4 HTTP Request nodes that call the local API now point to `https://famous-candles-add.loca.lt`). Will need updating again on next restart.
+
 ## What's left
 - Per-district school calendars (production requirement — currently one shared calendar for all schools)
 - Tune PQL/health thresholds on real data once connected to Flint's database
