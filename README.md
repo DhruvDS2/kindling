@@ -1,246 +1,195 @@
 # Kindling
 
-A PLG scoring engine for K-12 edtech — flags which free schools are ready to buy and which paying schools are about to churn, from product usage alone. Ships with a React GTM console, a FastAPI backend, and three n8n automations that post to Slack and draft outreach emails with Claude.
+**Kindling tells you which free schools are ready to buy, and which paying schools are about to churn — using product usage data alone.**
 
-## The problem
-
-In a product-led K-12 motion, teachers adopt for free and spread the product inside their school. Across hundreds of schools, two questions are impossible to answer by eye:
-
-1. **Who is ready to buy?** One excited teacher is a user. Several teachers whose students actively use the product is an account ready for a sales conversation.
-2. **Who is about to churn?** Usage falls before a renewal — but schools go quiet every winter, spring, and summer break. A naive system fires a false alarm every December.
-
-**The core insight:** measure activity in school days, not calendar days. A rolling window of the last 10 instructional days ignores breaks, so a quiet winter break doesn't look like churn.
-
-## Results
-
-### PQL — free schools ready to buy
-
-| | Naive: 5+ tutors built | Kindling PQL |
-|---|---|---|
-| Schools flagged | 93 | **30** |
-| Precision (flagged that converted) | 37% | **73%** |
-| Recall (converters caught first) | 100% | 65% |
-| Median lead time | 53 days | 30 days |
-
-Kindling sends reps a third as many schools and twice as many of them buy. The cost: it misses quiet converters with only 2 teachers.
-
-### Health — paying schools at risk of churning
-
-| | Naive: calendar windows | Kindling: school-day windows |
-|---|---|---|
-| Churners flagged ≥45 days early | 12 / 22 | 9 / 22 |
-| Recall | 55% | 41% |
-| **False alarm rate** | **100%** | **0%** |
-
-The naive model fires on every single healthy school around winter break. School-day windows cut false alarms to zero — the only result that makes CS alerts trustworthy.
+Built for K-12 edtech companies running a product-led growth motion, where teachers adopt for free and buying decisions happen at the school or district level.
 
 ---
 
-## Architecture
+## What it does
 
-```
-simulate.py ──► DuckDB (calendar, schools, teachers, events | truth)
-                    │
-          features.py (as_of date, school-day windows)
-                    │
-          ┌─────────┴──────────┐
-       pql.py              health.py
-          └─────────┬──────────┘
-                    │
-     ┌──────────────┼──────────────────────────┐
- backtest.py     api.py (FastAPI :8000)      frontend/ (React :5173)
- (vs truth)         │
-              ┌─────┴──────┐
-        localtunnel      Slack (via n8n)
-        (exposes :8000)   ├── #sales (ready to buy + AI email)
-                          └── #customer-success (at risk)
-```
+Every Monday morning, Kindling:
+- Posts the top ready-to-buy schools to your **#sales** Slack channel, with a Claude-drafted outreach email ready to copy-paste
+- Posts at-risk renewal accounts to your **#customer-success** channel
+- Sends follow-up nudges for any school you reached out to 2 weeks ago with no response
+
+The GTM console (a React web app) gives your team a live view of every school in the funnel — who's ready, who's at risk, and who to target next.
+
+![Architecture](.github/architecture.png)
 
 ---
 
-## Components
+## Why it works
 
-### Scoring engine (`kindling/`)
+The core idea: **measure activity in school days, not calendar days.**
 
-| File | What it does |
-|---|---|
-| `simulate.py` | Generates 200 synthetic schools over a 2025–26 school year with realistic archetypes |
-| `features.py` | Builds per-school feature vectors using school-day windows (not calendar days) |
-| `pql.py` | Rules-based PQL scorer — flags free schools ready to buy |
-| `health.py` | Rules-based health scorer — flags paying schools at churn risk |
-| `backtest.py` | Replays every Monday Sep 2025–Jun 2026, compares Kindling vs naive baseline |
-| `config.py` | Shared constants: window sizes, thresholds, renewal buffer |
-| `api.py` | FastAPI server exposing scores, Slack blocks, stats, outreach log, and pipeline data |
+Schools go quiet every Thanksgiving, winter break, and spring break. A naive churn model fires a false alarm every December. Kindling uses a rolling window of the last 10 *instructional days*, so a quiet winter break doesn't look like churn.
 
-### React GTM console (`frontend/`)
+| | Naive model | Kindling |
+|---|---|---|
+| **PQL precision** (ready schools that actually buy) | 37% | **73%** |
+| **Health false alarm rate** (healthy schools flagged as at-risk) | **100%** | **0%** |
 
-Seven screens for sales and CS teams:
+---
 
-| Screen | What it shows |
-|---|---|
-| **Monday brief** | Clickable KPI tiles (NRR with inline breakdown, ready to buy, at risk, admins) · at-risk watch list · top 3 cold prospects · links directly into other screens |
-| **Ready to buy** | Full ranked PQL table with signals, contact info, drill-down drawer, Slack send button |
-| **At risk** | Health score table with renewal dates, days remaining, churn signals, CS send button |
-| **Pipeline** | Funnel view of all schools by stage (Cold → Dormant → Active → Ready → Converted) |
-| **Prospects** | Top 10 prioritised cold leads with signal breakdown + outreach bar (Slack, Gmail, LinkedIn, Twitter). Also shows dormant schools (PQL 1–19). |
-| **Backtest** | Interactive bar chart comparing Kindling vs naive across the full season |
-| **Automations** | Run history from n8n with status, alert counts, email draft count |
+## What you get
 
-Built with React + Vite + TypeScript + TanStack Query v5. Design tokens: paper `#FAF8F5`, ember `#E2572B` (PQL), risk `#B42318` (health), steady `#2F7D5B`.
+- **React GTM console** at `localhost:5173` with 7 screens:
+  - Monday brief — KPI tiles, at-risk watch list, top cold prospects
+  - Ready to buy — ranked list with signals, contact info, one-click Slack send
+  - At risk — renewal dates, churn signals, one-click CS alert
+  - Prospects — top 10 cold leads ranked by priority, multi-channel outreach bar (Slack, Gmail, LinkedIn, Twitter)
+  - Pipeline — funnel view from cold → converted
+  - Backtest — Kindling vs naive across a full school year
+  - Automations — n8n run history
 
-### n8n automations (`n8n/`)
+- **FastAPI scoring engine** at `localhost:8000`
 
-Three workflows. All Slack messages are routed exclusively through n8n — no Slack URLs in the app code.
-
-#### `kindling_weekly.json` — Monday 8am brief
-
-```
-Every Monday 8am
-    └── Build as_of date
-         ├── GET /pql ──► Any ready schools?
-         │       true ──► Extract top 3 ──► Draft email (Claude Haiku) ──► Post to #sales
-         └── GET /slack/health ──► Any at-risk schools?
-                 true ──► Post to #customer-success
-```
-
-#### `kindling_notify.json` — On-demand account alert
-
-Triggered by webhook when a rep clicks "Send to Slack" in the Kindling UI. Routes to `#sales` for Ready schools, `#customer-success` for At-risk / Not yet schools. Logs the outreach to `data/outreach_log.json` via the API.
-
-#### `kindling_followup.json` — Monday 9am follow-up reminder
-
-```
-Every Monday 9am
-    └── GET /outreach/stale?days=14
-         └── Any non-responders? (contacted 14+ days ago, PQL hasn't moved)
-                 true ──► Build reminder message ──► Post to #sales
-```
-
-Keeps sales from letting warm leads go cold silently.
-
-### Data (`data/`)
-
-| File | Contents |
-|---|---|
-| `kindling.duckdb` | Synthetic event database (generated by `simulate.py`) |
-| `run_log.json` | n8n automation run history (last 50 runs) |
-| `outreach_log.json` | Schools contacted via Slack, with timestamp and PQL at time of contact |
+- **3 n8n automations** running on schedule in the cloud
 
 ---
 
 ## Setup
 
-### Prerequisites
+### What you need
 
 - Python 3.10+
 - Node 18+
-- npm (for localtunnel: `npm install -g localtunnel`)
-- An n8n account (n8n.cloud free tier works)
-- A `.env` file (copy `.env.example`)
+- An [n8n cloud](https://n8n.io) account (free tier works)
+- A Slack workspace with two channels: `#sales` and `#customer-success`
+- An [Anthropic API key](https://console.anthropic.com) (for AI email drafting)
 
-### 1. Backend
+---
+
+### Step 1 — Clone and install
 
 ```bash
+git clone https://github.com/DhruvDS2/kindling.git
+cd kindling
 pip install -r requirements.txt
-cp .env.example .env          # fill in N8N_NOTIFY_WEBHOOK (see step 3)
+```
 
-python -m kindling.simulate   # builds data/kindling.duckdb (~1 second)
+---
+
+### Step 2 — Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and fill in:
+
+```
+N8N_NOTIFY_WEBHOOK=    # paste from Step 5 below
+```
+
+The Slack webhook URLs live inside n8n (not in this file) — you'll add them in Step 4.
+
+---
+
+### Step 3 — Generate data and start the backend
+
+```bash
+python -m kindling.simulate    # builds the database (~1 second)
 uvicorn kindling.api:app --reload --port 8000
 ```
 
-### 2. Frontend
+The API is now running at `http://localhost:8000`. Test it: open `http://localhost:8000/stats` in your browser.
+
+---
+
+### Step 4 — Start the frontend
 
 ```bash
 cd frontend
 npm install
-npm run dev                   # starts at http://localhost:5173
+npm run dev
 ```
 
-### 3. Expose the API to n8n (localtunnel)
+Open `http://localhost:5173`. You should see the Monday brief.
 
-n8n Cloud can't reach `localhost:8000` directly. Use localtunnel to get a public URL:
+---
+
+### Step 5 — Expose your API to n8n (localtunnel)
+
+n8n runs in the cloud and can't reach `localhost`. This command creates a temporary public URL:
 
 ```bash
+npm install -g localtunnel
 lt --port 8000
-# prints something like: your url is: https://famous-candles-add.loca.lt
+# prints: your url is: https://some-words-here.loca.lt
 ```
 
-Keep this running alongside uvicorn. The URL changes on each restart — update it in the n8n HTTP Request nodes when it does.
+Keep this running alongside uvicorn. **Write down the URL — you'll need it in Step 6.**
 
-### 4. Import n8n workflows
-
-For each file in `n8n/`:
-
-1. Go to your n8n instance → **New workflow** → **Import from file**
-2. Import the JSON
-3. Update the localtunnel URL in the HTTP Request node(s):
-   - `kindling_weekly.json`: two nodes (`GET /pql` and `GET /slack/health`)
-   - `kindling_followup.json`: one node (`GET /outreach/stale`)
-   - `kindling_notify.json`: uses a webhook trigger, no localtunnel needed
-4. For `kindling_weekly.json`: add your Anthropic API key as a **Header Auth** credential named `Header Auth account` (header: `x-api-key`)
-5. Click **Publish**
-
-After publishing `kindling_notify.json`, copy its production webhook URL and add it to your `.env`:
-
-```
-N8N_NOTIFY_WEBHOOK=https://your-instance.app.n8n.cloud/webhook/kindling-notify
-```
-
-Restart uvicorn for the env var to load.
+> The URL changes every time you restart localtunnel. When it does, update the HTTP Request nodes in `kindling_weekly` and `kindling_followup` inside n8n (see Step 6).
 
 ---
 
-## API endpoints
+### Step 6 — Import the n8n workflows
 
-| Method | Path | Description |
+Do this for each of the 3 files in the `n8n/` folder:
+
+1. Go to [your n8n instance](https://app.n8n.cloud) → **New workflow** → **⋯ menu** → **Import from file**
+2. Import the JSON file
+3. Add your Slack webhook URLs directly into the **"Post to #sales"** and **"Post to #customer-success"** HTTP Request nodes
+   - Get webhook URLs from: Slack workspace → Settings → Manage apps → Incoming Webhooks
+4. For workflows that call your API (`kindling_weekly` and `kindling_followup`): replace the placeholder URL in the HTTP Request nodes with your localtunnel URL from Step 5
+5. For `kindling_weekly` only: add your Anthropic API key as a **Header Auth** credential
+   - In n8n: Credentials → New → Header Auth → name it `Header Auth account` → header: `x-api-key` → value: your key
+6. Click **Publish** on each workflow
+
+After publishing `kindling_notify`, copy its production webhook URL and paste it into `.env` as `N8N_NOTIFY_WEBHOOK`, then restart uvicorn.
+
+---
+
+### Step 7 — Test it
+
+Trigger the weekly workflow manually to confirm everything works:
+
+1. Open `kindling_weekly` in n8n
+2. Click **Execute**
+3. Check your #sales Slack channel — you should see the brief with an AI-drafted email at the bottom
+
+---
+
+## Running with real data
+
+This repo ships with synthetic data (200 fake schools, one full school year). To connect real data:
+
+1. Replace `kindling/simulate.py` with a query against your production database
+2. Make sure your schools table has: `school_id`, `name`, `city`, `state`, `contact_name`, `contact_title`, `contact_email`, `license_seats`, `renewal_date`, `arr`
+3. Run the backtest to calibrate thresholds on your actual conversion history:
+   ```bash
+   python -m kindling.backtest pql
+   python -m kindling.backtest health
+   ```
+4. Tune `PQL_READY_THRESHOLD` and `HEALTH_RISK_THRESHOLD` in `kindling/config.py` based on results
+
+Everything else — the scoring engine, API, frontend, and automations — stays the same.
+
+---
+
+## API reference
+
+| Method | Endpoint | What it returns |
 |---|---|---|
-| `GET` | `/pql?as_of=YYYY-MM-DD` | Ranked PQL scores for all free schools |
-| `GET` | `/health?as_of=YYYY-MM-DD` | Health scores for all paying schools |
-| `GET` | `/stats?as_of=YYYY-MM-DD` | Aggregate KPIs (ready count, at-risk count, ARR, NRR) |
-| `GET` | `/slack/pql?as_of=...` | Slack Block Kit payload for top Ready schools |
-| `GET` | `/slack/health?as_of=...` | Slack Block Kit payload for At risk schools |
-| `GET` | `/backtest` | Season-long backtest results (Kindling vs naive) |
-| `POST` | `/notify/slack` | Send a school alert to Slack and log outreach |
-| `POST` | `/log-run` | Append an automation run record |
-| `GET` | `/automations/log` | Read run history |
-| `GET` | `/pipeline/funnel` | School counts by pipeline stage |
-| `GET` | `/snapshot/pql/schools` | Schools at a given stage on a given date |
-| `POST` | `/snapshot/pql` | Record a stage snapshot for pipeline tracking |
-| `GET` | `/prospects/top10` | Top 10 cold leads ranked by priority signals |
-| `GET` | `/outreach/stale?days=14` | Schools contacted N+ days ago with no PQL improvement |
+| GET | `/pql?as_of=YYYY-MM-DD` | PQL scores for all free schools |
+| GET | `/health?as_of=YYYY-MM-DD` | Health scores for all paying schools |
+| GET | `/stats?as_of=YYYY-MM-DD` | KPI summary (counts, ARR, NRR) |
+| GET | `/prospects/top10` | Top 10 cold leads by priority score |
+| GET | `/outreach/stale?days=14` | Schools contacted N+ days ago with no PQL movement |
+| POST | `/notify/slack` | Send a school alert to Slack and log outreach |
+| GET | `/pipeline/funnel` | School counts by pipeline stage |
+| GET | `/backtest` | Full season backtest results |
+| GET | `/automations/log` | n8n run history |
 
 ---
 
-## Data model
+## Known limits
 
-All data is synthetic. 200 schools over a 2025–26 school year. Each school has a hidden archetype that drives its behavior:
-
-**Free schools:** `converter` (spreads, buys), `stalled` (spreads, never buys — budget freeze), `solo_star` (one great teacher, no spread), `builders` (lots of tutors created, students barely use them), `dormant`.
-
-**Paying schools:** `healthy`, `expander`, `churner`, `healthy_break_renewal` (renews right after winter break — the trap for naive churn models).
-
----
-
-## GTM workflow (what this enables)
-
-```
-Monday 8am  — n8n posts top ready-to-buy schools + AI-drafted email to #sales
-            — n8n posts at-risk renewal alerts to #customer-success
-Monday 9am  — n8n checks for non-responders (14+ days since contact, no PQL movement)
-            — posts follow-up nudge to #sales
-On demand   — rep opens Kindling, clicks any school, sends Slack alert to right channel
-            — Prospects screen shows top 10 cold leads ranked by: contact on file,
-              district size, paying customers in same state, prior engagement
-```
-
----
-
-## Limits
-
-- **Synthetic data only.** The simulator plants the exact traps the scorer needs to handle. Real data would be messier.
-- **School-day windows help health, barely help PQL.** The calendar vs school-day difference is small for PQL. The health false-alarm story is the proof.
-- **Stalled schools are unbeatable.** They look identical to buyers. All wrong PQL flags are stalled schools. This is the honest precision ceiling.
-- **One shared calendar.** Real districts have different break schedules. Production would need a per-district calendar.
-- **Rules, not ML, for production.** The LR comparison shows rules are more precise for PQL and have zero false alarms for health.
-- **localtunnel dependency.** The n8n workflows reach the local FastAPI server via localtunnel. The URL changes on restart — update the HTTP Request nodes in `kindling_weekly` and `kindling_followup` when it does.
-- **outreach_log.json is local.** In production this would live in a database, not a flat file.
+- **Synthetic data only.** The simulator is built to stress-test the scorer. Real data will be messier.
+- **One shared school calendar.** Production would need per-district calendars — different districts have different break dates.
+- **localtunnel URLs change on restart.** When you reboot, update the 4 HTTP Request nodes across the two API-calling workflows in n8n.
+- **Stalled schools are unbeatable.** Schools that look like buyers but never buy (budget freeze) are indistinguishable from real buyers. This is the honest precision ceiling — not a bug.
+- **outreach_log.json is a flat file.** Fine for testing; in production this would live in a database.
