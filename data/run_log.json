@@ -19,5 +19,12 @@
     "health_alerts": 0,
     "email_drafts": 1,
     "status": "succeeded"
+  },
+  {
+    "run_at": "2026-11-17",
+    "pql_alerts": 7,
+    "health_alerts": 0,
+    "email_drafts": 1,
+    "status": "succeeded"
   }
 ]

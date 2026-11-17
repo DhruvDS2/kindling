@@ -73,11 +73,41 @@
   - `n8n/kindling_weekly.json`: Email prompt now passes contact name, title, and location to Claude, and the opening line uses the contact's first name ("Hi Ashley"). Slack blocks show `_Fresno, CA · Ashley White (Principal)_` under each school name.
   - Database regenerated: 200 schools, 1,760 teachers, 347,551 events — all names and contacts look real.
 
-## What's left
-- Re-import latest `n8n/kindling_weekly.json` to pick up contact-personalised prompt and Slack block changes (then re-attach Header Auth credential to "Draft email with Claude" node)
-- 3.4 Clay webhook node (optional production plug-in)
-- 4.2 Static HTML report
-- 4.5 Demo video
+- **2026-11-16/17:** React GTM console built and shipped (`frontend/`).
+  - Five screens: Monday brief (KPI cards + last n8n sync), Ready to buy (ranked PQL table + drill-down drawer), At risk (health table + renewal dates), Backtest (interactive bar chart Kindling vs naive), Automations (n8n run history).
+  - Stack: React + Vite + TypeScript + TanStack Query v5.
+  - Design tokens: paper `#FAF8F5`, ember `#E2572B` (PQL), risk `#B42318` (health), steady `#2F7D5B`.
+  - "Send to #cs-alerts" button in the At risk drawer fires a one-off Slack alert for a specific school without waiting for Monday's automation.
+  - Sidebar shows live badge counts (ready to buy, at risk). Sync pill shows time since last n8n run.
 
-## Open questions
-- Can the PQL catch quiet converters without flooding reps? Try a lower threshold for schools with an admin signup. Must report it as a separate run.
+- **2026-11-17:** n8n email prompt upgraded using learnings from Clay prompting experiments.
+  - New rules: open with a specific signal number (not "I noticed"), para 1 never starts with "I", banned words list (noticed, data, metrics, analytics, reaching out, hope this finds you, touching base), under 80 words, first name only, 2 sentences per para max.
+  - Output format unchanged: `SUBJECT:` / `BODY:` on two lines.
+  - Updated via n8n REST API (PUT `/api/v1/workflows/...`) — no manual re-import needed.
+
+- **2026-11-17:** Clay set up for mock demo enrichment.
+  - Workspace created, `kindling_pql_leads.csv` (7 Ready schools) imported as a table.
+  - "Personalized Email" AI column built using school signals as structured prompt input. Column chips (not typed `{{variables}}`) required for variable substitution — discovered and fixed.
+  - Enrich Person tried on all 7 rows — all returned "No Profile Found" (expected: synthetic contacts don't exist on LinkedIn). Noted as a production limitation, not a bug.
+  - Clay free tier has no API/webhook access — operates as a parallel manual tool, not wired into n8n.
+
+- **2026-11-17:** GitHub push protection incident resolved.
+  - Slack webhook URLs in `n8n/kindling_weekly.json` triggered GitHub secret scanning on push.
+  - Fixed by: redacting URLs to `YOUR_SLACK_WEBHOOK_SALES` / `YOUR_SLACK_WEBHOOK_CS` in the JSON file, using GitHub's allow-secret bypass for the historical commit.
+  - `.env` (with real keys) stays gitignored — never committed.
+
+- **2026-11-17:** Slack webhooks regenerated and full end-to-end demo confirmed working.
+  - Old webhooks had been auto-revoked by Slack (unrelated to GitHub redaction).
+  - New webhooks created from api.slack.com/apps → Incoming Webhooks → Add New Webhook (one for #sales, one for #customer-success).
+  - `.env` and n8n both updated with new URLs.
+  - Full pipeline confirmed live: n8n fires → Kindling API → Claude Haiku drafts email → Slack #sales receives ranked school list + AI email + Gmail deeplink button. #customer-success correctly skipped (no health alerts).
+  - README rewritten with full architecture diagram, results tables, setup instructions, API endpoint table, data model, GTM workflow story, and limits section.
+
+## What's left
+- Per-district school calendars (production requirement — currently one shared calendar for all schools)
+- Tune PQL/health thresholds on real data once connected to Flint's database
+- Try lower PQL threshold for schools with admin signup (may catch quiet converters — must report as separate run)
+- Clay → n8n integration requires Clay Team plan ($149/mo) for API access; currently manual CSV workflow
+
+## How real data would work
+Replace `simulate.py` with a live query against Flint's production DB (or read replica). `features.py`, scoring rules, API, frontend, and n8n all stay the same. Main calibration work: tune thresholds on real conversion outcomes (a few weeks of data), add per-district calendars, handle messier real-world usage patterns. The architecture is correct — it just needs real data to dial in the numbers.
