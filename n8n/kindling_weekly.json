@@ -3,13 +3,22 @@
   "nodes": [
     {
       "parameters": {
-        "rule": { "interval": [{ "field": "weeks", "weeksInterval": 1 }] },
-        "triggerTimes": { "item": [{ "hour": 8, "minute": 0 }] }
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": [1],
+              "triggerAtHour": 8,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
       },
       "id": "schedule",
       "name": "Every Monday 8am",
       "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.1,
+      "typeVersion": 1.2,
       "position": [240, 300]
     },
     {
@@ -24,18 +33,30 @@
     },
     {
       "parameters": {
-        "url": "=http://localhost:8000/slack/pql?as_of={{ $json.as_of }}",
+        "url": "=https://shaggy-donkeys-guess.loca.lt/pql?as_of={{ $json.as_of }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "bypass-tunnel-reminder", "value": "true" }
+          ]
+        },
         "options": {}
       },
-      "id": "pql_api",
-      "name": "GET /slack/pql",
+      "id": "pql_raw",
+      "name": "GET /pql (raw)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [680, 180]
     },
     {
       "parameters": {
-        "url": "=http://localhost:8000/slack/health?as_of={{ $json.as_of }}",
+        "url": "=https://shaggy-donkeys-guess.loca.lt/slack/health?as_of={{ $json.as_of }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "bypass-tunnel-reminder", "value": "true" }
+          ]
+        },
         "options": {}
       },
       "id": "health_api",
@@ -50,8 +71,8 @@
           "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
           "conditions": [
             {
-              "leftValue": "={{ $json.blocks.length }}",
-              "rightValue": 1,
+              "leftValue": "={{ $json.scores.filter(s => s.status === 'Ready').length }}",
+              "rightValue": 0,
               "operator": { "type": "number", "operation": "gt" }
             }
           ]
@@ -84,81 +105,120 @@
     },
     {
       "parameters": {
-        "authentication": "webhook",
-        "webhookUri": "={{ $env.SLACK_WEBHOOK_SALES }}",
-        "blocksUi": "={{ JSON.stringify($json.blocks) }}"
+        "jsCode": "const scores = $input.item.json.scores;\nconst ready = scores.filter(s => s.status === 'Ready').slice(0, 3);\nconst top = ready[0];\nconst as_of = $('Build as_of date').item.json.as_of;\nreturn [{ json: { top_school: top, all_ready: ready, as_of } }];"
       },
-      "id": "slack_sales",
-      "name": "Post to #sales",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.1,
-      "position": [1120, 120],
-      "credentials": { "slackApi": { "id": "slack_cred", "name": "Slack webhook" } }
+      "id": "extract_top_school",
+      "name": "Extract top school",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 100]
     },
     {
       "parameters": {
-        "url": "={{ $env.CLAY_WEBHOOK_URL }}",
+        "url": "https://api.anthropic.com/v1/messages",
         "method": "POST",
-        "sendBody": true,
-        "bodyParameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
           "parameters": [
-            {
-              "name": "school_id",
-              "value": "={{ $json.school_id }}"
-            },
-            {
-              "name": "name",
-              "value": "={{ $json.name }}"
-            },
-            {
-              "name": "pql_score",
-              "value": "={{ $json.pql_score }}"
-            },
-            {
-              "name": "top_reason",
-              "value": "={{ $json.reasons[0] }}"
-            },
-            {
-              "name": "as_of",
-              "value": "={{ $json.as_of }}"
-            }
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
           ]
         },
-        "options": {}
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 300, messages: [{ role: 'user', content: 'Write a first-touch cold outreach email to a K-12 school administrator.\\n\\nRULES:\\n- Under 90 words total\\n- 3rd grade reading level, write like you talk\\n- Short sentences. 2 sentences per paragraph max.\\n- NO links, NO attachments\\n- Only 1 question (the closing one)\\n- No clichés (no \"hope this finds you well\", \"reaching out\", \"touching base\")\\n- Bold nothing, no bullet points in the email itself\\n- Address the contact by their first name only\\n\\nSTRUCTURE:\\nPara 1: Hi [contact first name] - I noticed that [what their teachers/students are doing from the signals] and wanted to send you a quick note about Kindling.\\nPara 2: We help K-12 schools [one specific thing tied to their signals]. [one sentence with their specific numbers].\\nPara 3: Would you be open to a quick intro call this week?\\n\\nOutput exactly two lines, no other text:\\nSUBJECT: [under 10 words, specific to what this school did, no fluff]\\nBODY: [the full email — paragraphs separated by \\\\n\\\\n]\\n\\nSchool: ' + $json.top_school.name + '\\nContact: ' + $json.top_school.contact_name + ', ' + $json.top_school.contact_title + '\\nLocation: ' + $json.top_school.city + ', ' + $json.top_school.state + '\\nSignals:\\n' + $json.top_school.reasons.map(r => '• ' + r).join('\\n') }] }) }}"
       },
-      "id": "clay_webhook",
-      "name": "Enrich in Clay (optional)",
+      "id": "draft_email",
+      "name": "Draft email with Claude",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [1120, 240],
-      "notes": "Production plug-in point. Set CLAY_WEBHOOK_URL env var to activate. Sends flagged school to a Clay table for firmographic enrichment (district size, decision-maker lookup). Disabled on synthetic data — Clay can't enrich fake school names."
+      "position": [1320, 100]
     },
     {
       "parameters": {
-        "authentication": "webhook",
-        "webhookUri": "={{ $env.SLACK_WEBHOOK_CS }}",
-        "blocksUi": "={{ JSON.stringify($json.blocks) }}"
+        "jsCode": "const top = $('Extract top school').item.json.top_school;\nconst allReady = $('Extract top school').item.json.all_ready;\nconst as_of = $('Extract top school').item.json.as_of;\nconst rawText = $input.item.json.content[0].text;\n\nlet emailSubject = '';\nlet emailBody = rawText;\ntry {\n  const subjectMatch = rawText.match(/^SUBJECT:\\s*(.+)/m);\n  const bodyMatch = rawText.match(/^BODY:\\s*([\\s\\S]+)/m);\n  if (subjectMatch && bodyMatch) {\n    emailSubject = subjectMatch[1].trim();\n    emailBody = bodyMatch[1].trim();\n  }\n} catch(e) {}\n\nconst gmailUrl = 'https://mail.google.com/mail/?view=cm&su=' + encodeURIComponent(emailSubject) + '&body=' + encodeURIComponent(emailBody);\n\nconst blocks = [\n  {\n    type: 'header',\n    text: { type: 'plain_text', text: '\\uD83D\\uDD25 ' + allReady.length + ' school' + (allReady.length !== 1 ? 's' : '') + ' ready to buy \\u00B7 ' + as_of }\n  }\n];\n\nfor (const school of allReady) {\n  blocks.push({ type: 'divider' });\n  const locationStr = (school.city && school.state) ? school.city + ', ' + school.state : '';\n  const contactStr = (school.contact_name && school.contact_title) ? school.contact_name + ' (' + school.contact_title + ')' : '';\n  const metaParts = [locationStr, contactStr].filter(Boolean);\n  const metaLine = metaParts.length ? '\\n_' + metaParts.join(' \\u00B7 ') + '_' : '';\n  blocks.push({\n    type: 'section',\n    text: {\n      type: 'mrkdwn',\n      text: '\\uD83D\\uDFE0 *' + school.name + '* \\u00B7 PQL ' + school.pql_score + ' \\u00B7 Ready' + metaLine + '\\n' + school.reasons.map(r => '\\u2022 ' + r).join('\\n')\n    }\n  });\n}\n\nblocks.push({ type: 'divider' });\nblocks.push({\n  type: 'section',\n  text: {\n    type: 'mrkdwn',\n    text: '\\u2709\\uFE0F *Suggested outreach for ' + top.name + ':*\\n' + (emailSubject ? '*Subject:* ' + emailSubject + '\\n\\n' : '') + emailBody\n  }\n});\n\nblocks.push({\n  type: 'actions',\n  elements: [{\n    type: 'button',\n    text: { type: 'plain_text', text: 'Open draft in Gmail' },\n    url: gmailUrl,\n    style: 'primary'\n  }]\n});\n\nreturn [{ json: { blocks } }];"
       },
-      "id": "slack_cs",
+      "id": "build_pql_slack",
+      "name": "Build Slack message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1540, 100]
+    },
+    {
+      "parameters": {
+        "url": "https://hooks.slack.com/services/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",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ blocks: $json.blocks }) }}",
+        "options": {}
+      },
+      "id": "post_sales",
+      "name": "Post to #sales",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1760, 100]
+    },
+    {
+      "parameters": {
+        "url": "https://hooks.slack.com/services/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",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ blocks: $json.blocks }) }}",
+        "options": {}
+      },
+      "id": "post_cs",
       "name": "Post to #customer-success",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.1,
-      "position": [1120, 360],
-      "credentials": { "slackApi": { "id": "slack_cred", "name": "Slack webhook" } }
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 360]
+    },
+    {
+      "parameters": {
+        "url": "https://shaggy-donkeys-guess.loca.lt/log-run",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "bypass-tunnel-reminder", "value": "true" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ run_at: $('Build as_of date').item.json.as_of, pql_alerts: $('GET /pql (raw)').item.json.scores.filter(s => s.status === 'Ready').length, health_alerts: Math.max(0, Math.floor(($('GET /slack/health').item.json.blocks.length - 1) / 2)), email_drafts: $('GET /pql (raw)').item.json.scores.filter(s => s.status === 'Ready').length > 0 ? 1 : 0, status: 'succeeded' }) }}",
+        "options": {}
+      },
+      "id": "log_run",
+      "name": "Log run to Kindling",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1980, 300]
     }
   ],
   "connections": {
     "Every Monday 8am": { "main": [[{ "node": "Build as_of date", "type": "main", "index": 0 }]] },
     "Build as_of date": {
-      "main": [
-        [{ "node": "GET /slack/pql", "type": "main", "index": 0 }],
-        [{ "node": "GET /slack/health", "type": "main", "index": 0 }]
-      ]
+      "main": [[
+        { "node": "GET /pql (raw)", "type": "main", "index": 0 },
+        { "node": "GET /slack/health", "type": "main", "index": 0 }
+      ]]
     },
-    "GET /slack/pql": { "main": [[{ "node": "Any PQL flags?", "type": "main", "index": 0 }]] },
+    "GET /pql (raw)": { "main": [[{ "node": "Any PQL flags?", "type": "main", "index": 0 }]] },
     "GET /slack/health": { "main": [[{ "node": "Any health flags?", "type": "main", "index": 0 }]] },
-    "Any PQL flags?": { "main": [[{ "node": "Post to #sales", "type": "main", "index": 0 }, { "node": "Enrich in Clay (optional)", "type": "main", "index": 0 }], []] },
-    "Any health flags?": { "main": [[{ "node": "Post to #customer-success", "type": "main", "index": 0 }], []] }
+    "Any PQL flags?": { "main": [[{ "node": "Extract top school", "type": "main", "index": 0 }], []] },
+    "Any health flags?": { "main": [[{ "node": "Post to #customer-success", "type": "main", "index": 0 }], []] },
+    "Extract top school": { "main": [[{ "node": "Draft email with Claude", "type": "main", "index": 0 }]] },
+    "Draft email with Claude": { "main": [[{ "node": "Build Slack message", "type": "main", "index": 0 }]] },
+    "Build Slack message": { "main": [[{ "node": "Post to #sales", "type": "main", "index": 0 }]] },
+    "Post to #sales": { "main": [[{ "node": "Log run to Kindling", "type": "main", "index": 0 }]] },
+    "Post to #customer-success": { "main": [[]] }
   },
   "settings": { "executionOrder": "v1" },
   "staticData": null,
