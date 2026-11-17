@@ -7,11 +7,19 @@ import ReadyToBuy from './screens/ReadyToBuy';
 import AtRisk from './screens/AtRisk';
 import Backtest from './screens/Backtest';
 import Automations from './screens/Automations';
+import Pipeline from './screens/Pipeline';
+import Prospects from './screens/Prospects';
 
-type Screen = 'brief' | 'ready' | 'risk' | 'backtest' | 'automations';
+type Screen = 'brief' | 'ready' | 'risk' | 'backtest' | 'automations' | 'pipeline' | 'prospects';
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('brief');
+  const [focusSchoolId, setFocusSchoolId] = useState<string | null>(null);
+
+  function navigate(s: Screen, schoolId?: string) {
+    setScreen(s);
+    setFocusSchoolId(schoolId ?? null);
+  }
 
   const { data: pqlData } = useQuery<PqlScore[]>({ queryKey: ['pql'], queryFn: () => fetchPql() });
   const { data: healthData } = useQuery<HealthScore[]>({ queryKey: ['health'], queryFn: () => fetchHealth() });
@@ -35,12 +43,16 @@ export default function App() {
     risk: 'At risk',
     backtest: 'Backtest: churn alerts',
     automations: 'Automations',
+    pipeline: 'Pipeline funnel',
+    prospects: 'Prospects',
   };
 
   const navItems: { id: Screen; label: string; badge?: number; badgeType?: 'ember' | 'risk' }[] = [
     { id: 'brief', label: 'Monday brief' },
     { id: 'ready', label: 'Ready to buy', badge: readyCount, badgeType: 'ember' },
     { id: 'risk', label: 'At risk', badge: riskCount, badgeType: 'risk' },
+    { id: 'pipeline', label: 'Pipeline' },
+    { id: 'prospects', label: 'Prospects' },
     { id: 'backtest', label: 'Backtest' },
     { id: 'automations', label: 'Automations' },
   ];
@@ -82,7 +94,7 @@ export default function App() {
             return (
               <button
                 key={item.id}
-                onClick={() => setScreen(item.id)}
+                onClick={() => navigate(item.id)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -181,9 +193,11 @@ export default function App() {
           </div>
         </div>
 
-        {screen === 'brief' && <MondayBrief onNavigate={setScreen} />}
-        {screen === 'ready' && <ReadyToBuy />}
-        {screen === 'risk' && <AtRisk />}
+        {screen === 'brief' && <MondayBrief onNavigate={navigate} />}
+        {screen === 'ready' && <ReadyToBuy focusSchoolId={focusSchoolId} />}
+        {screen === 'risk' && <AtRisk focusSchoolId={focusSchoolId} />}
+        {screen === 'pipeline' && <Pipeline />}
+        {screen === 'prospects' && <Prospects />}
         {screen === 'backtest' && <Backtest />}
         {screen === 'automations' && <Automations />}
       </main>

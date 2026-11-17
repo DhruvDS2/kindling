@@ -1,4 +1,4 @@
-import type { PqlScore, HealthScore, BacktestData, AutomationRun } from './types';
+import type { PqlScore, HealthScore, BacktestData, AutomationRun, PipelineFunnelData } from './types';
 
 export const API = 'http://localhost:8000';
 const today = new Date();
@@ -27,6 +27,30 @@ export async function fetchBacktest(): Promise<BacktestData> {
 export async function fetchAutomationsLog(): Promise<AutomationRun[]> {
   const data = await get<{ runs: AutomationRun[]; last_run: AutomationRun | null }>('/automations/log');
   return data.runs ?? [];
+}
+
+export async function fetchSnapshotSchools(asOf?: string, status?: string): Promise<{ as_of: string | null; schools: { school_id: string; name: string; pql_score: number; status: string }[] }> {
+  const params = new URLSearchParams();
+  if (asOf) params.set('as_of', asOf);
+  if (status) params.set('status', status);
+  return get(`/snapshot/pql/schools?${params}`);
+}
+
+export async function fetchPipelineFunnel(): Promise<PipelineFunnelData> {
+  return get<PipelineFunnelData>('/pipeline/funnel');
+}
+
+export async function postSnapshot(asOf = DEFAULT_AS_OF): Promise<{ ok: boolean; count: number }> {
+  const res = await fetch(`${API}/snapshot/pql?as_of=${asOf}`, { method: 'POST' });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json();
+}
+
+export interface ProspectSignal { label: string; pts: number; detail: string; }
+export interface TopProspect extends PqlScore { priority_score: number; signals: ProspectSignal[]; }
+
+export async function fetchTop10Prospects(asOf = DEFAULT_AS_OF): Promise<{ top10: TopProspect[]; total_prospects: number }> {
+  return get(`/prospects/top10?as_of=${asOf}`);
 }
 
 export async function notifySlack(

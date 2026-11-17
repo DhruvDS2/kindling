@@ -33,7 +33,25 @@
     },
     {
       "parameters": {
-        "url": "=https://shaggy-donkeys-guess.loca.lt/pql?as_of={{ $json.as_of }}",
+        "url": "=YOUR_LOCALTUNNEL_URL/snapshot/pql?as_of={{ $json.as_of }}",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "bypass-tunnel-reminder", "value": "true" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "snapshot_pql",
+      "name": "POST /snapshot/pql",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "url": "=YOUR_LOCALTUNNEL_URL/pql?as_of={{ $json.as_of }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -50,7 +68,7 @@
     },
     {
       "parameters": {
-        "url": "=https://shaggy-donkeys-guess.loca.lt/slack/health?as_of={{ $json.as_of }}",
+        "url": "=https://YOUR_LOCALTUNNEL_URL/slack/health?as_of={{ $json.as_of }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -181,7 +199,7 @@
     },
     {
       "parameters": {
-        "url": "https://shaggy-donkeys-guess.loca.lt/log-run",
+        "url": "https://YOUR_LOCALTUNNEL_URL/log-run",
         "method": "POST",
         "sendHeaders": true,
         "headerParameters": {
@@ -206,10 +224,12 @@
     "Every Monday 8am": { "main": [[{ "node": "Build as_of date", "type": "main", "index": 0 }]] },
     "Build as_of date": {
       "main": [[
+        { "node": "POST /snapshot/pql", "type": "main", "index": 0 },
         { "node": "GET /pql (raw)", "type": "main", "index": 0 },
         { "node": "GET /slack/health", "type": "main", "index": 0 }
       ]]
     },
+    "POST /snapshot/pql": { "main": [[]] },
     "GET /pql (raw)": { "main": [[{ "node": "Any PQL flags?", "type": "main", "index": 0 }]] },
     "GET /slack/health": { "main": [[{ "node": "Any health flags?", "type": "main", "index": 0 }]] },
     "Any PQL flags?": { "main": [[{ "node": "Extract top school", "type": "main", "index": 0 }], []] },

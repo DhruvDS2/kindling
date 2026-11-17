@@ -1,0 +1,102 @@
+{
+  "name": "Kindling follow-up reminders",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": [1],
+              "triggerAtHour": 9,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Every Monday 9am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "=YOUR_LOCALTUNNEL_URL/outreach/stale?days=14",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "bypass-tunnel-reminder", "value": "true" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get_stale",
+      "name": "GET /outreach/stale",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.total }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ]
+        }
+      },
+      "id": "has_stale",
+      "name": "Any non-responders?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const stale = $input.item.json.stale;\nconst total = $input.item.json.total;\nconst today = new Date().toISOString().split('T')[0];\n\nconst blocks = [\n  {\n    type: 'header',\n    text: { type: 'plain_text', text: '\\u231B ' + total + ' school' + (total !== 1 ? 's' : '') + ' haven\\'t responded yet \\u00B7 ' + today }\n  },\n  {\n    type: 'section',\n    text: {\n      type: 'mrkdwn',\n      text: 'These schools were contacted 14+ days ago with no sign of engagement. Worth a follow-up.'\n    }\n  },\n  { type: 'divider' }\n];\n\nfor (const s of stale) {\n  blocks.push({\n    type: 'section',\n    text: {\n      type: 'mrkdwn',\n      text: '*' + s.name + '*' +\n        ' \\u00B7 contacted ' + s.days_since_contact + ' days ago' +\n        ' \\u00B7 PQL still ' + s.current_pql_score +\n        ' \\u00B7 ' + s.channel + ' channel'\n    }\n  });\n}\n\nblocks.push({ type: 'divider' });\nblocks.push({\n  type: 'section',\n  text: {\n    type: 'mrkdwn',\n    text: '_Open Kindling to send a follow-up from the Prospects screen._'\n  }\n});\n\nreturn [{ json: { blocks } }];"
+      },
+      "id": "build_message",
+      "name": "Build follow-up message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 180]
+    },
+    {
+      "parameters": {
+        "url": "YOUR_SLACK_WEBHOOK_SALES",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ blocks: $json.blocks }) }}",
+        "options": {}
+      },
+      "id": "post_sales",
+      "name": "Post to #sales",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 180]
+    }
+  ],
+  "connections": {
+    "Every Monday 9am": { "main": [[{ "node": "GET /outreach/stale", "type": "main", "index": 0 }]] },
+    "GET /outreach/stale": { "main": [[{ "node": "Any non-responders?", "type": "main", "index": 0 }]] },
+    "Any non-responders?": {
+      "main": [
+        [{ "node": "Build follow-up message", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Build follow-up message": { "main": [[{ "node": "Post to #sales", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "meta": { "templateCredsSetupCompleted": true },
+  "pinData": {}
+}

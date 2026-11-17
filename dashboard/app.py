@@ -1,6 +1,8 @@
 """Kindling dashboard — run with: streamlit run dashboard/app.py"""
 from __future__ import annotations
 
+import os
+import requests
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -10,6 +12,12 @@ import streamlit as st
 
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 from kindling import config as C, health, pql
 from kindling.features import account_features, connect
@@ -109,13 +117,29 @@ def chip(label: str) -> str:
     return f'<span class="chip {cls}">{label}</span>'
 
 
+def _contact_meta(r) -> str:
+    parts = []
+    name  = r.get("contact_name") or ""
+    title = r.get("contact_title") or ""
+    city  = r.get("city")  or ""
+    state = r.get("state") or ""
+    if name and title:
+        parts.append(f"{name} · {title}")
+    if city and state:
+        parts.append(f"{city}, {state}")
+    return " · ".join(parts)
+
+
 def pql_card(r) -> str:
     reasons_html = "".join(f"<li>{re}</li>" for re in r.reasons)
     meta = f"{int(r.active_teachers)} active teachers · {int(r.student_sessions)} student sessions"
+    contact = _contact_meta(r)
+    contact_html = f'<div class="card-meta">{contact}</div>' if contact else ""
     return f"""
     <div class="school-card school-card-ready">
       <div class="card-name">{r["name"]}{chip("Ready")}</div>
       <div class="card-meta">{meta}</div>
+      {contact_html}
       <ul class="card-reasons">{reasons_html}</ul>
     </div>"""
 
@@ -123,12 +147,24 @@ def pql_card(r) -> str:
 def health_card(r) -> str:
     reasons_html = "".join(f"<li>{re}</li>" for re in r.reasons)
     meta = f"Renews in {int(r.days_to_renewal)}d · ${int(r.arr):,} ARR · {int(r.active_teachers)}/{int(r.seats)} seats active"
+    contact = _contact_meta(r)
+    contact_html = f'<div class="card-meta">{contact}</div>' if contact else ""
     return f"""
     <div class="school-card school-card-risk">
       <div class="card-name">{r["name"]}{chip("At risk")}</div>
       <div class="card-meta">{meta}</div>
+      {contact_html}
       <ul class="card-reasons">{reasons_html}</ul>
     </div>"""
+
+
+# ── Slack helper ───────────────────────────────────────────────────────────────
+def send_slack(text: str, webhook_url: str) -> bool:
+    try:
+        r = requests.post(webhook_url, json={"text": text}, timeout=5)
+        return r.status_code == 200
+    except Exception:
+        return False
 
 
 # ── sidebar ─────────────────────────────────────────────────────────────────────
@@ -138,6 +174,10 @@ with st.sidebar:
     as_of = st.date_input("Score as of", value=date(2026, 2, 2),
                            min_value=C.START, max_value=C.END)
     st.caption("All features use only data up to this date.")
+    st.markdown("---")
+    st.markdown("**Quick access**")
+    st.link_button("📧 Open Gmail", "https://mail.google.com", use_container_width=True)
+    st.link_button("💬 Open Slack", "https://slack.com/app_redirect", use_container_width=True)
     st.markdown("---")
     st.markdown("**How to run**")
     st.code("streamlit run dashboard/app.py", language="bash")
@@ -186,7 +226,7 @@ c4.metric("📈 Projected NRR",  f"{nrr_projected:.0%}",
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ── tabs ────────────────────────────────────────────────────────────────────────
-tab_pql, tab_health, tab_backtest = st.tabs(["🟠 Ready to buy", "🔴 At risk", "📊 Backtest"])
+tab_pql, tab_health, tab_backtest, tab_outreach = st.tabs(["🟠 Ready to buy", "🔴 At risk", "📊 Backtest", "📬 Outreach"])
 
 
 # ── PQL tab ─────────────────────────────────────────────────────────────────────
@@ -380,3 +420,91 @@ with tab_backtest:
         height=320,
     )
     st.plotly_chart(fig, use_container_width=True)
+
+
+# ── Outreach tab ─────────────────────────────────────────────────────────────────
+with tab_outreach:
+    sales_webhook = os.environ.get("SLACK_WEBHOOK_SALES", "")
+    cs_webhook    = os.environ.get("SLACK_WEBHOOK_CS", "")
+
+    # top bar
+    top_left, top_right, top_spacer = st.columns([1, 1, 4])
+    top_left.link_button("📧 Open Gmail", "https://mail.google.com", use_container_width=True)
+    top_right.link_button("💬 Open Slack", "https://slack.com/app_redirect", use_container_width=True)
+
+    if not sales_webhook and not cs_webhook:
+        st.warning(
+            "Slack webhooks not configured. Add `SLACK_WEBHOOK_SALES` and/or "
+            "`SLACK_WEBHOOK_CS` to your `.env` file to enable one-click notifications.",
+            icon="⚠️",
+        )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    left, right = st.columns(2)
+
+    with left:
+        st.markdown(f"#### 🟠 Ready to buy &nbsp;·&nbsp; {len(ready)} schools",
+                    unsafe_allow_html=True)
+        st.caption("Notify your sales channel when you're ready to reach out.")
+        if ready.empty:
+            st.info("No PQL schools on this date.")
+        for _, r in ready.iterrows():
+            with st.container(border=True):
+                meta_line = f"Score **{int(r.pql_score)}** · {int(r.active_teachers)} teachers · {int(r.student_sessions)} sessions"
+                contact   = _contact_meta(r)
+                st.markdown(f"**{r['name']}**")
+                st.caption(meta_line + (f" · {contact}" if contact else ""))
+
+                notif_key = f"sent_pql_{r['name']}"
+                if st.session_state.get(notif_key):
+                    st.success("Sent to Slack")
+                else:
+                    if st.button("Notify Slack", key=f"btn_pql_{r['name']}",
+                                 disabled=not bool(sales_webhook)):
+                        msg = (
+                            f"🔥 *Ready to buy:* {r['name']}\n"
+                            f"• Score: {int(r.pql_score)} · "
+                            f"{int(r.active_teachers)} active teachers · "
+                            f"{int(r.student_sessions)} student sessions"
+                        )
+                        if contact:
+                            msg += f"\n• Contact: {contact}"
+                        if send_slack(msg, sales_webhook):
+                            st.session_state[notif_key] = True
+                            st.rerun()
+                        else:
+                            st.error("Failed — check your SLACK_WEBHOOK_SALES URL.")
+
+    with right:
+        st.markdown(f"#### 🔴 At risk &nbsp;·&nbsp; {len(at_risk)} schools",
+                    unsafe_allow_html=True)
+        st.caption("Notify your CS channel for renewal risk follow-ups.")
+        if at_risk.empty:
+            st.info("No at-risk schools on this date.")
+        for _, r in at_risk.iterrows():
+            with st.container(border=True):
+                meta_line = f"Health **{int(r.health_score)}** · Renews in {int(r.days_to_renewal)}d · ${int(r.arr):,} ARR"
+                contact   = _contact_meta(r)
+                st.markdown(f"**{r['name']}**")
+                st.caption(meta_line + (f" · {contact}" if contact else ""))
+
+                notif_key = f"sent_health_{r['name']}"
+                if st.session_state.get(notif_key):
+                    st.success("Sent to Slack")
+                else:
+                    if st.button("Notify Slack", key=f"btn_health_{r['name']}",
+                                 disabled=not bool(cs_webhook)):
+                        msg = (
+                            f"⚠️ *At risk:* {r['name']}\n"
+                            f"• Health: {int(r.health_score)} · "
+                            f"Renews in {int(r.days_to_renewal)}d · "
+                            f"${int(r.arr):,} ARR · "
+                            f"{int(r.active_teachers)}/{int(r.seats)} seats active"
+                        )
+                        if contact:
+                            msg += f"\n• Contact: {contact}"
+                        if send_slack(msg, cs_webhook):
+                            st.session_state[notif_key] = True
+                            st.rerun()
+                        else:
+                            st.error("Failed — check your SLACK_WEBHOOK_CS URL.")

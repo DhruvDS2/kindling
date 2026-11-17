@@ -1,0 +1,96 @@
+{
+  "name": "Kindling notify (manual)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "kindling-notify",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Notify trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "kindling-notify"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.channel }}",
+              "rightValue": "sales",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "route",
+      "name": "Sales or CS?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "YOUR_SLACK_WEBHOOK_SALES",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ blocks: $json.body.blocks }) }}",
+        "options": {}
+      },
+      "id": "post_sales",
+      "name": "Post to #sales",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 180]
+    },
+    {
+      "parameters": {
+        "url": "YOUR_SLACK_WEBHOOK_CS",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ blocks: $json.body.blocks }) }}",
+        "options": {}
+      },
+      "id": "post_cs",
+      "name": "Post to #customer-success",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 420]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\": true}"
+      },
+      "id": "respond",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Notify trigger": { "main": [[{ "node": "Sales or CS?", "type": "main", "index": 0 }]] },
+    "Sales or CS?": {
+      "main": [
+        [{ "node": "Post to #sales", "type": "main", "index": 0 }],
+        [{ "node": "Post to #customer-success", "type": "main", "index": 0 }]
+      ]
+    },
+    "Post to #sales": { "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]] },
+    "Post to #customer-success": { "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "meta": { "templateCredsSetupCompleted": true },
+  "pinData": {}
+}

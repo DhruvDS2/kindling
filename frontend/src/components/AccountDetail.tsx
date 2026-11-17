@@ -18,9 +18,10 @@ interface Props {
 }
 
 export default function AccountDetail({ type, school, onClose }: Props) {
-  const [slackSent, setSlackSent] = useState(false);
-  const [slackLoading, setSlackLoading] = useState(false);
+  const [slackState, setSlackState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [contacted, setContacted] = useState(false);
+  const channel = school.status === 'Ready' ? 'sales' : 'cs';
+  const channelLabel = school.status === 'Ready' ? '#sales' : '#customer-success';
 
   const hs = isHealth(school) ? school : null;
   const score = type === 'health' && hs ? hs.health_score : (school as PqlScore).pql_score;
@@ -31,19 +32,14 @@ export default function AccountDetail({ type, school, onClose }: Props) {
     : null;
 
   const handleSlack = async () => {
-    setSlackLoading(true);
+    setSlackState('sending');
     try {
-      await notifySlack('cs', school.school_id);
-      setSlackSent(true);
+      const res = await notifySlack(channel, school.school_id);
+      setSlackState(res.ok ? 'sent' : 'error');
     } catch {
-      // proceed optimistically — Slack webhook may not be configured
-      setSlackSent(true);
-    } finally {
-      setSlackLoading(false);
+      setSlackState('error');
     }
   };
-
-  const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(school.contact_email)}&su=${encodeURIComponent(`Checking in on ${school.name}`)}&body=${encodeURIComponent(`Hi ${school.contact_name.split(' ')[0]},\n\nJust wanted to check in on how things are going at ${school.name}.\n\nWould love to hear how the team is finding the platform.\n\nBest,`)}`;
 
   return (
     <>
@@ -103,7 +99,7 @@ export default function AccountDetail({ type, school, onClose }: Props) {
 
         {/* Score + renewal */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <ScoreChip score={score} type={type} />
+          <ScoreChip score={score} type={type} status={school.status} />
           {hs && (
             <span style={{ fontSize: 14, color: 'var(--ink)', fontFamily: 'JetBrains Mono, monospace' }}>
               Renews {renewLabel} · in {hs.days_to_renewal} days
@@ -180,47 +176,26 @@ export default function AccountDetail({ type, school, onClose }: Props) {
         {/* Action buttons */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <button
-            onClick={handleSlack}
-            disabled={slackSent || slackLoading}
+            onClick={slackState === 'error' ? handleSlack : slackState === 'idle' ? handleSlack : undefined}
+            disabled={slackState === 'sending' || slackState === 'sent'}
             style={{
               height: 44,
               width: '100%',
-              background: slackSent ? 'var(--steady)' : 'var(--ink)',
+              background: slackState === 'sent' ? 'var(--steady)' : slackState === 'error' ? 'var(--risk)' : 'var(--ink)',
               color: 'var(--paper)',
               border: 'none',
               borderRadius: 8,
               fontSize: 14,
               fontWeight: 600,
-              cursor: slackSent ? 'default' : 'pointer',
+              cursor: slackState === 'sending' || slackState === 'sent' ? 'default' : 'pointer',
               fontFamily: 'Inter',
             }}
           >
-            {slackSent ? '✓ Sent to #cs-alerts' : slackLoading ? 'Sending…' : 'Send to #cs-alerts'}
+            {slackState === 'sent' && `✓ Sent to ${channelLabel}`}
+            {slackState === 'sending' && 'Sending…'}
+            {slackState === 'error' && `Failed — tap to retry`}
+            {slackState === 'idle' && `Send to ${channelLabel}`}
           </button>
-
-          <a
-            href={gmailUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              height: 44,
-              width: '100%',
-              background: 'transparent',
-              color: 'var(--ink)',
-              border: '1px solid var(--line)',
-              borderRadius: 8,
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: 'pointer',
-              fontFamily: 'Inter',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textDecoration: 'none',
-            }}
-          >
-            Draft check-in email
-          </a>
 
           <button
             onClick={() => setContacted(v => !v)}

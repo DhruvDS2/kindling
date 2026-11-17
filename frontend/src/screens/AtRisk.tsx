@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchHealth } from '../api';
 import type { HealthScore } from '../types';
@@ -6,9 +6,18 @@ import ScoreChip from '../components/ScoreChip';
 import { SkeletonCard } from '../components/Skeleton';
 import AccountDetail from '../components/AccountDetail';
 
-export default function AtRisk() {
+interface Props { focusSchoolId?: string | null; }
+
+export default function AtRisk({ focusSchoolId }: Props) {
   const { data, isLoading, error } = useQuery<HealthScore[]>({ queryKey: ['health'], queryFn: () => fetchHealth() });
   const [selected, setSelected] = useState<HealthScore | null>(null);
+
+  useEffect(() => {
+    if (focusSchoolId && data) {
+      const school = data.find(s => s.school_id === focusSchoolId) ?? null;
+      setSelected(school);
+    }
+  }, [focusSchoolId, data]);
 
   if (error) return <div style={{ color: 'var(--muted)' }}>Failed to load — is the API running?</div>;
   if (isLoading) return <SkeletonCard rows={6} />;
@@ -62,7 +71,7 @@ export default function AtRisk() {
                     </div>
                   </td>
                   <td style={{ padding: '12px 16px' }}>
-                    <ScoreChip score={school.health_score} type="health" />
+                    <ScoreChip score={school.health_score} type="health" status={school.status} />
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--body)' }}>{school.status}</td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontFamily: 'JetBrains Mono, monospace', color: 'var(--body)' }}>

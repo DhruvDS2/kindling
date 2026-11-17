@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchPql } from '../api';
 import type { PqlScore } from '../types';
@@ -6,10 +6,19 @@ import ScoreChip from '../components/ScoreChip';
 import { SkeletonCard } from '../components/Skeleton';
 import AccountDetail from '../components/AccountDetail';
 
-export default function ReadyToBuy() {
+interface Props { focusSchoolId?: string | null; }
+
+export default function ReadyToBuy({ focusSchoolId }: Props) {
   const { data, isLoading, error } = useQuery<PqlScore[]>({ queryKey: ['pql'], queryFn: () => fetchPql() });
   const [selected, setSelected] = useState<PqlScore | null>(null);
   const [sortAsc, setSortAsc] = useState(false);
+
+  useEffect(() => {
+    if (focusSchoolId && data) {
+      const school = data.find(s => s.school_id === focusSchoolId) ?? null;
+      setSelected(school);
+    }
+  }, [focusSchoolId, data]);
 
   if (error) return <div style={{ color: 'var(--muted)' }}>Failed to load — is the API running?</div>;
   if (isLoading) return <SkeletonCard rows={8} />;
@@ -78,7 +87,7 @@ export default function ReadyToBuy() {
                   </div>
                 </td>
                 <td style={{ padding: '12px 16px' }}>
-                  <ScoreChip score={school.pql_score} type="pql" />
+                  <ScoreChip score={school.pql_score} type="pql" status={school.status} />
                 </td>
                 <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--body)' }}>
                   {school.status}

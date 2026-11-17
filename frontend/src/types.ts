@@ -53,6 +53,27 @@ export interface BacktestData {
   takeaway: string;
 }
 
+export interface FunnelSnapshot {
+  as_of: string;
+  not_yet: number;
+  ready: number;
+}
+
+export interface StageMove {
+  school_id: string;
+  name: string;
+  as_of: string;
+  from_status: string;
+  to_status: string;
+}
+
+export interface PipelineFunnelData {
+  snapshots: FunnelSnapshot[];
+  latest: FunnelSnapshot | null;
+  prev: FunnelSnapshot | null;
+  moves: StageMove[];
+}
+
 export interface AutomationRun {
   id?: string;
   run_at: string;

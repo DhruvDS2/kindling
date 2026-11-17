@@ -51,7 +51,7 @@ HEALTH_SESSION_TREND_MAX = 35    # session retention vs prior window
 HEALTH_RENEWAL_BUFFER_MAX = 15   # urgency buffer (full points when renewal is far away)
 HEALTH_SEAT_UTIL_MAX = 10        # active teachers as share of licensed seats
 HEALTH_RENEWAL_BUFFER_DAYS = 45  # flag this many days before renewal
-HEALTH_RISK_THRESHOLD = 50       # score below this → "At risk"
+HEALTH_RISK_THRESHOLD = 70       # score below this → "At risk"
 
 
 def all_days():
