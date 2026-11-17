@@ -79,6 +79,7 @@ life AS (
     GROUP BY ALL
 )
 SELECT l.as_of, s.school_id, s.name, s.type, s.plan_at_start, s.seats, s.arr, s.renewal_date,
+    s.city, s.state, s.district, s.contact_name, s.contact_title, s.contact_email,
     l.first_signup, l.admin_signed_up_on, l.converted_on,
     coalesce(g.active_teachers, 0)       AS active_teachers,
     coalesce(g.active_teachers_prev, 0)  AS active_teachers_prev,

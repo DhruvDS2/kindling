@@ -39,6 +39,54 @@ SECOND = ["Hollow", "Bluff", "Crossing", "Glen", "Reach", "Point", "Commons", "V
 SUFFIX = ["Academy", "Prep", "Day School", "Country Day", "School"]
 REGIONS = ["Northeast", "Southeast", "Midwest", "Southwest", "West"]
 
+CITIES_BY_REGION = {
+    "Northeast": [("Boston","MA"),("Providence","RI"),("Hartford","CT"),
+                  ("Albany","NY"),("Burlington","VT"),("Portland","ME"),
+                  ("Manchester","NH"),("Trenton","NJ"),("Philadelphia","PA"),
+                  ("Concord","NH"),("Springfield","MA"),("New Haven","CT")],
+    "Southeast": [("Atlanta","GA"),("Charlotte","NC"),("Nashville","TN"),
+                  ("Richmond","VA"),("Columbia","SC"),("Birmingham","AL"),
+                  ("Jackson","MS"),("Baton Rouge","LA"),("Tallahassee","FL"),
+                  ("Raleigh","NC"),("Memphis","TN"),("Savannah","GA")],
+    "Midwest":   [("Columbus","OH"),("Indianapolis","IN"),("Chicago","IL"),
+                  ("Detroit","MI"),("Minneapolis","MN"),("Milwaukee","WI"),
+                  ("Des Moines","IA"),("Kansas City","MO"),("Cleveland","OH"),
+                  ("Cincinnati","OH"),("St. Louis","MO"),("Madison","WI")],
+    "Southwest": [("Houston","TX"),("Phoenix","AZ"),("Dallas","TX"),
+                  ("Albuquerque","NM"),("Denver","CO"),("Oklahoma City","OK"),
+                  ("Austin","TX"),("Tucson","AZ"),("El Paso","TX"),
+                  ("Santa Fe","NM"),("Fort Worth","TX"),("Colorado Springs","CO")],
+    "West":      [("Los Angeles","CA"),("Seattle","WA"),("Portland","OR"),
+                  ("Sacramento","CA"),("Las Vegas","NV"),("Boise","ID"),
+                  ("San Francisco","CA"),("Oakland","CA"),("Spokane","WA"),
+                  ("Eugene","OR"),("Salt Lake City","UT"),("Fresno","CA")],
+}
+
+DISTRICT_SUFFIXES = [
+    "Unified School District", "Independent School District",
+    "Public Schools", "City Schools", "County Schools",
+]
+
+CONTACT_FIRST = [
+    "Sarah", "Jennifer", "Michael", "David", "Emily", "Jessica",
+    "Matthew", "Ashley", "Christopher", "Amanda", "Daniel", "Lisa",
+    "Andrew", "Michelle", "Kevin", "Laura", "Brian", "Karen",
+    "James", "Nancy", "Robert", "Patricia", "Thomas", "Sandra",
+    "Charles", "Margaret", "Joseph", "Barbara", "Richard", "Susan",
+]
+CONTACT_LAST = [
+    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia",
+    "Miller", "Davis", "Wilson", "Moore", "Taylor", "Anderson",
+    "Thomas", "Jackson", "White", "Harris", "Martin", "Thompson",
+    "Young", "Robinson", "Clark", "Lewis", "Lee", "Walker",
+    "Hall", "Allen", "Wright", "Scott", "Green", "Baker",
+]
+CONTACT_TITLES = [
+    "Principal", "Principal", "Principal",
+    "Curriculum Director", "Technology Coordinator",
+    "Director of Instruction",
+]
+
 
 class World:
     def __init__(self, seed: int = C.SEED):
@@ -112,10 +160,29 @@ class World:
                    renewal: date | None = None):
         sid = f"s{len(self.schools) + 1:03d}"
         typ = "independent" if self.rng.random() < 0.8 else "district"
+        region = REGIONS[int(self.rng.integers(len(REGIONS)))]
+        city, state = CITIES_BY_REGION[region][int(self.rng.integers(len(CITIES_BY_REGION[region])))]
+        school_name = next(self.names)
+
+        district: str | None = None
+        if typ == "district":
+            ds = DISTRICT_SUFFIXES[int(self.rng.integers(len(DISTRICT_SUFFIXES)))]
+            district = f"{city} {ds}"
+
+        first = CONTACT_FIRST[int(self.rng.integers(len(CONTACT_FIRST)))]
+        last  = CONTACT_LAST[int(self.rng.integers(len(CONTACT_LAST)))]
+        contact_name  = f"{first} {last}"
+        contact_title = CONTACT_TITLES[int(self.rng.integers(len(CONTACT_TITLES)))]
+        slug          = school_name.lower().replace(" ", "-")
+        contact_email = f"{first.lower()}.{last.lower()}@{slug}.edu"
+
         self.schools.append({
-            "school_id": sid, "name": next(self.names), "type": typ,
+            "school_id": sid, "name": school_name, "type": typ,
             "students": int(self.rng.integers(150, 1600)),
-            "region": REGIONS[int(self.rng.integers(len(REGIONS)))],
+            "region": region, "city": city, "state": state,
+            "district": district,
+            "contact_name": contact_name, "contact_title": contact_title,
+            "contact_email": contact_email,
             "plan_at_start": plan, "seats": seats,
             "arr": seats * C.PRICE_PER_SEAT, "signup_date": signup,
             "renewal_date": renewal,
