@@ -197,8 +197,21 @@
   - PQL: the fall pick is 35 (65% fall precision), which **fails the same rule on spring** (50%). 60 stays. This is why the sweep grades on held-out data.
   - config.py is not changed by the sweep. On synthetic data it's a dry run; the README's "Running with real data" section now covers the real-data steps.
 
+- **2026-11-23:** Pre-UI readiness audit (task 5.5). Verdict: **READY WITH GAPS** (`docs/gates/PRE-UI-READINESS.md`).
+  - Ran as specified in `docs/PRE-UI-AUDIT-RUN.md`: 3 read-only lanes in parallel, one worktree each, at commit 3fc7e2b. Lane reports are in `docs/gates/lane-*.md` and screenshots in `docs/gates/screens/`.
+  - Scoring core: all GREEN. Results regenerate byte-for-byte, 12/12 tests pass, and no future-data leak showed up across 3 modes × 2 worlds × 6 dates. The health score and churn backtest are done.
+  - Blockers before UI work:
+    - The API and frontend default `as_of` to the real date, past the simulated year.
+    - `GET /backtest` serves proxy numbers, with Kindling's false alarms hard-coded to 0, under a "real backtest output" label.
+    - Schools stay in the CS list after renewal, and "at risk" has three definitions.
+    - `npm run build` fails on 5 TypeScript errors.
+  - Biggest gap: the school detail view has no data behind it (no history, usage or calendar endpoints), and its drawer shows hard-coded signal dates.
+  - Rule breach during the audit: loading the Streamlit dashboard sent 3 anonymous usage-telemetry POSTs to Streamlit's collector (default `gatherUsageStats`). Nothing else left localhost and no Slack messages were sent. Future runs should disable it.
+  - The 30-second pitch in LEARN.md is stale: it says 73% (now 77%), "under my 70% goal" (71% now meets it) and "churn side is next" (built).
+
 ## What's left
-- Pre-UI readiness audit (task 5.5), then the UI changes it scopes
+- Answer the 7 questions in `docs/gates/PRE-UI-READINESS.md` §7, then run the UI changes it scopes (blockers in §2 first)
+- Update LEARN.md's pitch and Q&A to the current numbers
 - 2-minute demo video (deferred until the UI changes land)
 - On real data: tune thresholds with `backtest.py sweep --db`, source real district calendars, and rerun the admin rule
 

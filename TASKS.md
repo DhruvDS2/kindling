@@ -44,7 +44,10 @@ One task at a time. Each one ends with something you can run. Update PROGRESS.md
 - [x] 5.2 PQL run 3: lower Ready threshold when an admin has signed up, plus an admin-noise stress test (`backtest.py pql_admin`). Off by default.
 - [x] 5.3 Threshold sweep, tuned on fall and graded on spring, runnable on real data with `--db` (`backtest.py sweep`)
 - [x] 5.4 Clay → n8n: decided not to wire it (see PROGRESS.md decisions)
-- [ ] 5.5 Pre-UI readiness audit (`docs/PRE-UI-AUDIT-RUN.md` → `docs/gates/PRE-UI-READINESS.md`)
+- [x] 5.5 Pre-UI readiness audit (`docs/PRE-UI-AUDIT-RUN.md` → `docs/gates/PRE-UI-READINESS.md`): READY WITH GAPS
 
 ## Phase 6: UI changes
-- [ ] Scope set by the pre-UI audit (5.5)
+- [ ] Answer the 7 questions in `docs/gates/PRE-UI-READINESS.md` §7
+- [ ] Fix the 4 blockers in §2: date contract, backtest numbers from backtest.py, one renewal/"at risk" rule, green build
+- [ ] Freeze the data contract in §4 (Phase 0 of the UI run)
+- [ ] Build the four views against it, plus the §3 items alongside
