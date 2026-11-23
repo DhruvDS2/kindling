@@ -195,8 +195,8 @@
     <tr><th>Signal</th><th>Weight</th><th>What it measures</th></tr>
     <tr><td><strong>Teacher trend</strong></td><td>40 pts</td><td>Are active teachers trending up or down over the last 10 instr. days?</td></tr>
     <tr><td><strong>Session trend</strong></td><td>35 pts</td><td>Total session depth — are teachers still going deep?</td></tr>
-    <tr><td><strong>Renewal urgency</strong></td><td>15 pts</td><td>How close is the renewal date? Flags schools within 30 days.</td></tr>
-    <tr><td><strong>Seat utilisation</strong></td><td>10 pts</td><td>What % of licensed seats have ever been used?</td></tr>
+    <tr><td><strong>Renewal urgency</strong></td><td>15 pts</td><td>How close is the renewal date? Points drain away inside the 45-day action window.</td></tr>
+    <tr><td><strong>Seat utilisation</strong></td><td>10 pts</td><td>What % of licensed seats had an active teacher in the last 10 school days?</td></tr>
   </table>
   <p><strong>Threshold:</strong> <code>HEALTH_RISK_THRESHOLD = 70</code> → scores ≤ 70 appear in the "At Risk" list.</p>
 
@@ -212,7 +212,7 @@
 
   <div class="callout ember">
     <div class="h">Why rules, not ML?</div>
-    A logistic regression was trained and tested (fall training set, spring test set). Results: LR gets higher recall on health (55% vs 27%) but an 88% false alarm rate — it still doesn't understand breaks. The rules model gets 0% false alarms because the breaks are hard-coded as domain knowledge. ML doesn't know what a school calendar is.
+    A logistic regression was trained and tested (fall training set, spring test set). Results: LR gets higher recall on health (82% vs 59%) but a 100% false alarm rate — it still doesn't understand breaks. The rules model gets 0% false alarms because the breaks are hard-coded as domain knowledge. ML doesn't know what a school calendar is.
   </div>
 
   <!-- 5 -->
@@ -221,12 +221,12 @@
 
   <h3>PQL backtest — Kindling vs naive</h3>
   <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">
-    <div class="stat"><div class="big ember">73%</div><div class="lbl">Kindling precision (flagged schools that converted)</div></div>
+    <div class="stat"><div class="big ember">77%</div><div class="lbl">Kindling precision (flagged schools that converted)</div></div>
     <div class="stat"><div class="big" style="color:#888">37%</div><div class="lbl">Naive precision (5+ teachers built = ready)</div></div>
-    <div class="stat"><div class="big ember">30</div><div class="lbl">Kindling: schools flagged total (vs 93 naive)</div></div>
-    <div class="stat"><div class="big ember">30 days</div><div class="lbl">Kindling median lead time (vs 53 days naive)</div></div>
+    <div class="stat"><div class="big ember">31</div><div class="lbl">Kindling: schools flagged total (vs 93 naive)</div></div>
+    <div class="stat"><div class="big ember">28 days</div><div class="lbl">Kindling median lead time (vs 56 days naive)</div></div>
   </div>
-  <p style="margin-top:14px">Read: Kindling sends reps about a third as many schools, and twice as many of them actually buy. The trade-off is recall — Kindling catches 65% of converters (22/34) vs naive's 100%. The 6 it misses are "quiet converters" with only 2 teachers.</p>
+  <p style="margin-top:14px">Read: Kindling sends reps about a third as many schools, and twice as many of them actually buy. The trade-off is recall — Kindling catches 71% of converters (24/34) vs naive's 100%. Of the 10 it misses, 6 are decoys that bought by chance; the 4 real converters it misses had only 2–3 teachers.</p>
 
   <h3>Health backtest — the proof the core idea works</h3>
   <div class="grid">
@@ -235,7 +235,7 @@
   </div>
   <div class="callout ok">
     <div class="h">The school-day windows proof</div>
-    On the January 5th snapshot, the naive calendar-window model had flagged 37 false alarms (every healthy school looked like it was churning — because all usage dropped over winter break). The school-day window model had 3. That's the whole idea, confirmed in real simulated data.
+    On the January 5th snapshot, the naive calendar-window model flagged 78 schools, 57 of them healthy (every healthy school looked like it was churning, because all usage dropped over winter break). The school-day window model flagged 3, and none of them were healthy. That's the whole idea, confirmed in real simulated data.
   </div>
 
   <!-- 6 -->

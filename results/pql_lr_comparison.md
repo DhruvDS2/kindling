@@ -4,10 +4,10 @@ Trained on Mondays ≤ 2025-12-31 (fall). Tested on Mondays > 2025-12-31 (spring
 
 |                                           | Rules (spring only)   | Logistic regression (trained fall)   |
 |:------------------------------------------|:----------------------|:-------------------------------------|
-| schools flagged                           | 22                    | 44                                   |
-| flagged that converted                    | 14                    | 21                                   |
-| precision                                 | 64%                   | 48%                                  |
-| converters caught before converting       | 14 / 21               | 21 / 21                              |
-| recall                                    | 67%                   | 100%                                 |
-| median lead time (days)                   | 28                    | 36                                   |
-| top 20 on 2026-02-02 that later converted | 6 / 20                | 9 / 20                               |
+| schools flagged                           | 23                    | 52                                   |
+| flagged that converted                    | 16                    | 21                                   |
+| precision                                 | 70%                   | 40%                                  |
+| converters caught before converting       | 16 / 23               | 21 / 23                              |
+| recall                                    | 70%                   | 91%                                  |
+| median lead time (days)                   | 24                    | 46                                   |
+| top 20 on 2026-02-02 that later converted | 8 / 20                | 8 / 20                               |

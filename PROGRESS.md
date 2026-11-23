@@ -152,6 +152,27 @@
 
   **Localtunnel URLs updated in n8n** (all 4 HTTP Request nodes that call the local API now point to `https://famous-candles-add.loca.lt`). Will need updating again on next restart.
 
+- **2026-11-23:** Re-baselined every published number against the current code (task 5.0).
+  - Found: `results/*.md`, README, `report.py` and the explainer page still quoted numbers from older code. Two changes had moved them and nobody reran the backtests: the Nov 16 simulator update (contacts and cities use extra random draws, so the simulated world shifted; same seed, different schools) and the Nov 17 health threshold change from 50 to 70.
+  - Current numbers (what `make backtest` prints today):
+
+    | | Naive | Kindling |
+    |---|---|---|
+    | PQL schools flagged | 93 | 31 |
+    | PQL precision | 37% | **77%** |
+    | PQL recall | **100%** (34/34) | 71% (24/34); 24/28 real converters = 86% |
+    | PQL median lead time | 56 days | 28 days |
+    | Health churners flagged 45+ days early | 21/22 (95%) | 17/22 (77%) |
+    | Health false alarm rate | 100% (58/58) | **0%** (0/58) |
+    | Jan 5 snapshot | 78 flagged, 57 healthy | 3 flagged, 0 healthy |
+
+  - LR comparison (train fall, test spring): PQL LR 40% precision / 91% recall vs rules 70% / 70%. Health LR 82% recall / 100% false alarms vs rules 59% / 0%.
+  - All 7 wrong PQL flags are stalled schools. The 4 real converters missed had 2–3 teachers.
+  - Honest note: for the PQL, calendar windows now do slightly *better* than school days (25 vs 24 converters caught, 78% vs 77% precision). School days prove themselves on health only.
+  - The health threshold went 50 → 70 for a UI reason (nobody showed at risk on the current date), not by tuning on backtest results. It raised health recall from 41% to 77% with false alarms still at 0%.
+  - `report.py` headline tiles now read from `results/*.md` instead of hardcoded numbers, so they can't drift again.
+  - Pre-commit hook false positive: it blocked the explainer page because the page *describes* the key prefix the hook looks for. Reworded the page.
+
 ## What's left
 - Per-district school calendars (production requirement — currently one shared calendar for all schools)
 - Tune PQL/health thresholds on real data once connected to Flint's database

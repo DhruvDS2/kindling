@@ -27,7 +27,7 @@ Schools go quiet every Thanksgiving, winter break, and spring break. A naive chu
 
 | | Naive model | Kindling |
 |---|---|---|
-| **PQL precision** (ready schools that actually buy) | 37% | **73%** |
+| **PQL precision** (ready schools that actually buy) | 37% | **77%** |
 | **Health false alarm rate** (healthy schools flagged as at-risk) | **100%** | **0%** |
 
 ---

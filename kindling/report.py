@@ -97,13 +97,35 @@ def _read_md_table(path: Path) -> str:
     return "<table>" + "\n".join(rows) + "</table>"
 
 
+def _md_cell(path: Path, row: str, col: int) -> str:
+    """One cell from a results table, so headline tiles always match the latest backtest.
+
+    col 1 is the first result column (the baseline), col 2 the second (Kindling).
+    """
+    if not path.exists():
+        return "?"
+    for line in path.read_text().splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if cells and cells[0] == row and len(cells) > col:
+            return cells[col]
+    return "?"
+
+
 def build():
     chart_b64 = _chart_png()
 
-    pql_table    = _read_md_table(C.RESULTS_DIR / "pql_backtest.md")
-    health_table = _read_md_table(C.RESULTS_DIR / "health_backtest.md")
+    pql_md, health_md = C.RESULTS_DIR / "pql_backtest.md", C.RESULTS_DIR / "health_backtest.md"
+    health_lr_md = C.RESULTS_DIR / "health_lr_comparison.md"
+    pql_prec, pql_prec_naive = _md_cell(pql_md, "precision", 2), _md_cell(pql_md, "precision", 1)
+    pql_lead = _md_cell(pql_md, "median lead time (days)", 2)
+    fa, fa_naive = _md_cell(health_md, "false alarm rate", 2), _md_cell(health_md, "false alarm rate", 1)
+    health_lead = _md_cell(health_md, "median lead time on churners (days)", 2)
+    lr_fa = _md_cell(health_lr_md, "false alarm rate", 2)
+
+    pql_table    = _read_md_table(pql_md)
+    health_table = _read_md_table(health_md)
     pql_lr_table = _read_md_table(C.RESULTS_DIR / "pql_lr_comparison.md")
-    hlth_lr_table = _read_md_table(C.RESULTS_DIR / "health_lr_comparison.md")
+    hlth_lr_table = _read_md_table(health_lr_md)
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -142,22 +164,22 @@ def build():
 <div class="tiles">
   <div class="tile">
     <div class="label">Precision · PQL</div>
-    <div class="val ember">73%</div>
-    <div class="note">vs 37% naive</div>
+    <div class="val ember">{pql_prec}</div>
+    <div class="note">vs {pql_prec_naive} naive</div>
   </div>
   <div class="tile">
     <div class="label">False alarm rate · Health</div>
-    <div class="val steady">0%</div>
-    <div class="note">vs 100% calendar-day baseline</div>
+    <div class="val steady">{fa}</div>
+    <div class="note">vs {fa_naive} calendar-day baseline</div>
   </div>
   <div class="tile">
     <div class="label">Lead time · PQL</div>
-    <div class="val">30d</div>
+    <div class="val">{pql_lead}d</div>
     <div class="note">median before conversion</div>
   </div>
   <div class="tile">
     <div class="label">Lead time · Health</div>
-    <div class="val">72d</div>
+    <div class="val">{health_lead}d</div>
     <div class="note">median before churn</div>
   </div>
 </div>
@@ -182,7 +204,7 @@ def build():
   </div>
   <div>
     <h3>Health: rules vs logistic regression</h3>
-    <p class="note">LR catches more churners but fires 88% false alarms — it doesn't understand breaks.</p>
+    <p class="note">LR catches more churners but fires {lr_fa} false alarms — it doesn't understand breaks.</p>
     {hlth_lr_table}
   </div>
 </div>
@@ -190,8 +212,8 @@ def build():
 <h3>Limits</h3>
 <ul>
   <li>Synthetic data only. The simulator plants the traps the scorer handles.</li>
-  <li>School-day windows barely help PQL (same precision/recall). The health false-alarm story is the proof.</li>
-  <li>Stalled schools are unbeatable — they look identical to buyers. All 8 wrong PQL flags are stalled schools.</li>
+  <li>School-day windows don't help the PQL score: calendar windows score about the same. The health false-alarm result is where school days prove themselves.</li>
+  <li>Stalled schools (budget freezes) look identical to buyers, so no usage score can avoid them. They are where the wrong PQL flags come from.</li>
   <li>One shared calendar. Production needs a per-district calendar.</li>
 </ul>
 
