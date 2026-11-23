@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kindling — What This Project Was About</title>
+<style>
+  :root{
+    --ink:#1a1a1a; --muted:#5f6368; --line:#e6e6e6; --bg:#fbfaf8; --card:#fff;
+    --accent:#e2572b; --ok:#137333; --warn:#b06000; --code:#f4f4f6; --blue:#1a73e8;
+    --ember:#e2572b; --risk:#b42318; --steady:#2f7d5b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.65 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:860px;margin:0 auto;padding:0 24px 96px}
+  header.hero{padding:64px 24px 40px;text-align:center;border-bottom:1px solid var(--line);background:#fff}
+  .hero h1{font-size:40px;margin:0 0 8px;letter-spacing:-.02em}
+  .hero h1 span{color:var(--ember)}
+  .hero .tag{color:var(--muted);font-size:18px;max-width:640px;margin:0 auto}
+  .hero .meta{margin-top:20px;color:var(--muted);font-size:13px}
+  h2{font-size:26px;margin:56px 0 8px;letter-spacing:-.01em}
+  h2 .n{color:var(--ember);font-variant-numeric:tabular-nums;margin-right:10px}
+  h3{font-size:18px;margin:28px 0 6px}
+  p{margin:12px 0}
+  .lead{font-size:18px;color:#333}
+  code{background:var(--code);padding:1.5px 6px;border-radius:5px;font:13.5px/1.4 ui-monospace,Menlo,monospace}
+  pre{background:#1e1e28;color:#e8e8f0;padding:16px 18px;border-radius:10px;overflow:auto;font:13px/1.55 ui-monospace,Menlo,monospace}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin:18px 0}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:640px){.grid{grid-template-columns:1fr}}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  @media(max-width:640px){.grid3{grid-template-columns:1fr}}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+  .stat .big{font-size:30px;font-weight:700;letter-spacing:-.02em}
+  .stat .big.ember{color:var(--ember)}
+  .stat .big.ok{color:var(--steady)}
+  .stat .big.warn{color:var(--risk)}
+  .stat .lbl{color:var(--muted);font-size:13px;margin-top:2px}
+  .callout{border-left:4px solid var(--blue);background:#f2f7ff;padding:14px 18px;border-radius:0 10px 10px 0;margin:18px 0}
+  .callout.warn{border-color:var(--warn);background:#fff7ec}
+  .callout.ok{border-color:var(--ok);background:#eefaf0}
+  .callout.ember{border-color:var(--ember);background:#fff4f1}
+  .callout .h{font-weight:700;margin-bottom:4px}
+  table{width:100%;border-collapse:collapse;margin:16px 0;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);font-size:14.5px;vertical-align:top}
+  th{background:#f3f3f5;font-weight:600}
+  tr:last-child td{border-bottom:none}
+  .flow{font:13.5px/1.7 ui-monospace,Menlo,monospace;background:#fff;border:1px dashed var(--line);border-radius:12px;padding:18px 20px;white-space:pre;overflow:auto}
+  .pill{display:inline-block;background:#eef1f6;color:#3c4257;border-radius:20px;padding:2px 11px;font-size:12.5px;font-weight:600;margin:2px 4px 2px 0}
+  .pill.ai{background:#fdeef0;color:#a3283a}
+  .pill.det{background:#eaf5ec;color:#1c6b34}
+  .pill.ember{background:#fff0eb;color:#a33019}
+  .pill.blue{background:#e8f0fe;color:#1a56bb}
+  .toc{columns:2;font-size:14.5px;color:#333}
+  .toc a{color:#333}
+  @media(max-width:640px){.toc{columns:1}}
+  a{color:var(--blue)}
+  .step{display:flex;gap:14px;margin:14px 0}
+  .step .num{flex:0 0 30px;height:30px;border-radius:50%;background:var(--ember);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+  .step .body{flex:1}
+  .foot{margin-top:64px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:13px;text-align:center}
+  hr.soft{border:none;border-top:1px solid var(--line);margin:40px 0}
+  .screen-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:10px 0;border-left:4px solid var(--ember)}
+  .screen-card h4{margin:0 0 4px;font-size:15px}
+  .screen-card p{margin:0;color:var(--muted);font-size:13.5px}
+  .wf-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:10px 0}
+  .wf-card .wf-time{color:var(--muted);font-size:12px;font-family:ui-monospace,Menlo,monospace;margin-bottom:6px}
+  .wf-card h4{margin:0 0 6px;font-size:15px}
+  .wf-card p{margin:0;font-size:13.5px}
+  .hl{font-weight:700;color:var(--ember)}
+  .ok{color:var(--steady);font-weight:700}
+  .risk{color:var(--risk);font-weight:700}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <h1><span>Kindling</span></h1>
+  <div class="tag">A PLG scoring engine that tells K-12 edtech companies which free schools are ready to buy and which paying schools are about to churn — using product usage alone, measured in <strong>school days, not calendar days.</strong></div>
+  <div class="meta">A personal walkthrough · what it does, how it works, the tech stack, and the core idea</div>
+</header>
+
+<div class="wrap">
+
+  <div class="card">
+    <b>On this page</b>
+    <div class="toc" style="margin-top:8px">
+      <a href="#problem">1 · The problem</a><br>
+      <a href="#innovation">2 · The core innovation (school days)</a><br>
+      <a href="#pipeline">3 · The pipeline end to end</a><br>
+      <a href="#scoring">4 · How the scoring works</a><br>
+      <a href="#backtest">5 · Backtest results (the numbers)</a><br>
+      <a href="#automations">6 · The 3 n8n automations</a><br>
+      <a href="#console">7 · The GTM console (React app)</a><br>
+      <a href="#stack">8 · Full tech stack</a><br>
+      <a href="#limits">9 · Honest limits</a><br>
+      <a href="#future">10 · Where it goes next</a>
+    </div>
+  </div>
+
+  <!-- 1 -->
+  <h2 id="problem"><span class="n">1</span>The problem</h2>
+  <p class="lead">K-12 edtech companies grow by getting teachers to adopt for free, then converting at the school or district level when enough teachers are hooked. But knowing <em>when</em> to reach out is the hard part.</p>
+  <p>The two questions that drive every GTM motion in K-12 edtech:</p>
+  <div class="grid">
+    <div class="stat">
+      <div class="big ember">PQL</div>
+      <div class="lbl"><strong>Product Qualified Lead</strong> — a free school where enough teachers are using the product that someone in the building should be buying a license. When do you reach out?</div>
+    </div>
+    <div class="stat">
+      <div class="big warn">Health</div>
+      <div class="lbl"><strong>Churn Risk</strong> — a paying school where teacher activity has fallen off a cliff. When do you call your CS rep before renewal?</div>
+    </div>
+  </div>
+  <p>The naive approach: set a usage threshold (e.g. "5+ teachers built something this week") and fire whenever a school crosses it. <strong>The naive approach explodes every December.</strong></p>
+  <div class="callout warn">
+    <div class="h">The school calendar problem nobody talks about</div>
+    Schools stop using everything over winter break — Thanksgiving, December, spring break. A naive model sees usage drop to zero and fires a churn alarm on every single paying school, every single year. When 100% of your alerts are false alarms, your CS team stops acting on them.
+  </div>
+  <p>Kindling's answer: measure activity in <strong>school days</strong>, not calendar days.</p>
+
+  <!-- 2 -->
+  <h2 id="innovation"><span class="n">2</span>The core innovation — school-day windows</h2>
+  <p class="lead">The single idea this project is built around: a "quiet week" means something completely different during winter break than it does in October.</p>
+  <p>Instead of asking "what happened in the last 7 calendar days?", Kindling asks: <strong>"what happened during the last 10 instructional days?"</strong></p>
+
+  <div class="flow">School calendar (2025–26, US)
+  ─────────────────────────────────────────────────────
+  Breaks (instructional days paused):
+    Thanksgiving     Nov 26 – Nov 30
+    Winter           Dec 22 – Jan 4
+    Spring           Mar 23 – Mar 27
+    Summer           Jun 13 – Aug 31
+
+  Calendar window (naive):                 School-day window (Kindling):
+  ──────────────────────────────           ──────────────────────────────
+  Dec 15: 10 days = Dec 5–14 ✓            Dec 15: 10 instr. days = Dec 1–12
+  Dec 26: 10 days = Dec 16–25 ✗           Dec 26: 10 instr. days = Dec 1–12
+              ↑ break week included                    ↑ break skipped entirely
+  Jan 5:  10 days = Dec 26–Jan 4 ✗        Jan 5:  10 instr. days = Dec 1–12
+              ↑ entire window is break                 ↑ still the pre-break window
+
+  Result: naive model fires false alarms every break.
+          Kindling never fires during break — the window doesn't move.</div>
+
+  <div class="callout ok">
+    <div class="h">Why this is the right model for K-12</div>
+    A school's usage patterns should be measured against the days they were actually <em>supposed</em> to be using it. A teacher who hasn't logged in for two weeks of winter break isn't churning — she's on vacation. The scoring engine should know that.
+  </div>
+
+  <p>The school-day window is built in <code>kindling/features.py</code> using a DuckDB query that filters the event table to instructional days only before computing any usage statistics.</p>
+
+  <!-- 3 -->
+  <h2 id="pipeline"><span class="n">3</span>The pipeline, end to end</h2>
+  <p>Five layers. Each has a clear job.</p>
+
+  <div class="flow">synthetic event data (200 schools, 1,760 teachers, 347K events)
+  │
+  ▼  <b>features.py</b>     DuckDB SQL — computes per-school stats in school-day windows    <span style="color:#888">[deterministic]</span>
+     → teacher count, session trend, builder ratio, seat utilisation
+  │
+  ▼  <b>pql.py</b>          Rules scorer 0–100, top-3 signal reasons, PQL_READY_THRESHOLD ≥60  <span style="color:#888">[deterministic]</span>
+     <b>health.py</b>        Rules scorer 0–100, 4 signals, HEALTH_RISK_THRESHOLD ≤70            <span style="color:#888">[deterministic]</span>
+  │
+  ▼  <b>api.py</b>           FastAPI — serves scores to the React frontend and n8n             <span style="color:#888">[deterministic]</span>
+     GET /pql, GET /health, GET /stats, GET /prospects/top10, GET /pipeline/funnel …
+  │
+  ▼  <b>n8n cloud</b>        Three scheduled workflows — weekly brief, on-demand alert,        <span style="color:#a3283a">[automation]</span>
+                   follow-up reminders — all posting to Slack
+  │
+  ▼  <b>Claude Haiku</b>     Drafts the outreach email embedded in the Monday #sales brief     <span style="color:#a3283a">[AI]</span>
+     → under 80 words, opens with a specific signal number, 3rd-grade reading level</div>
+
+  <p><strong>Two outputs, two destinations:</strong> the Monday brief (ranked schools + AI email) goes to <code>#sales</code>; churn alerts go to <code>#customer-success</code>.</p>
+
+  <!-- 4 -->
+  <h2 id="scoring"><span class="n">4</span>How the scoring works</h2>
+  <p class="lead">Both scorers are rules-based — not machine learning. That's intentional. A rule you can read and argue with is more trustworthy than a black box in a sales context.</p>
+
+  <h3>PQL score (0–100) — free schools</h3>
+  <p>Four signals, weighted and capped at 100:</p>
+  <table>
+    <tr><th>Signal</th><th>Weight</th><th>What it measures</th></tr>
+    <tr><td><strong>Teacher trend</strong></td><td>35 pts</td><td>Are the number of active teachers growing week over week?</td></tr>
+    <tr><td><strong>Session trend</strong></td><td>30 pts</td><td>Are sessions (time spent) trending up?</td></tr>
+    <tr><td><strong>Builder ratio</strong></td><td>20 pts</td><td>What fraction of teachers have built something (not just viewed)?</td></tr>
+    <tr><td><strong>Multi-teacher</strong></td><td>15 pts</td><td>Are multiple teachers using it independently (not just one champion)?</td></tr>
+  </table>
+  <p><strong>Threshold:</strong> <code>PQL_READY_THRESHOLD = 60</code> → scores ≥ 60 appear in the "Ready to Buy" list.</p>
+  <p>Each school also gets <strong>top-3 signal reasons</strong> in plain English (e.g. "3 teachers built projects last week, up from 1") — this is what goes into the Claude email prompt and the UI drawer.</p>
+
+  <h3>Health score (0–100) — paying schools</h3>
+  <table>
+    <tr><th>Signal</th><th>Weight</th><th>What it measures</th></tr>
+    <tr><td><strong>Teacher trend</strong></td><td>40 pts</td><td>Are active teachers trending up or down over the last 10 instr. days?</td></tr>
+    <tr><td><strong>Session trend</strong></td><td>35 pts</td><td>Total session depth — are teachers still going deep?</td></tr>
+    <tr><td><strong>Renewal urgency</strong></td><td>15 pts</td><td>How close is the renewal date? Flags schools within 30 days.</td></tr>
+    <tr><td><strong>Seat utilisation</strong></td><td>10 pts</td><td>What % of licensed seats have ever been used?</td></tr>
+  </table>
+  <p><strong>Threshold:</strong> <code>HEALTH_RISK_THRESHOLD = 70</code> → scores ≤ 70 appear in the "At Risk" list.</p>
+
+  <h3>Prospect priority score — cold leads</h3>
+  <p>For schools that haven't yet been touched (PQL = 0 or low, never contacted), a separate ranking decides who to reach out to first:</p>
+  <table>
+    <tr><th>Signal</th><th>Weight</th></tr>
+    <tr><td>Contact info on file</td><td>40 pts</td></tr>
+    <tr><td>District-level school (higher contract value)</td><td>25 pts</td></tr>
+    <tr><td>Paying customers in the same state (social proof)</td><td>25 pts</td></tr>
+    <tr><td>Prior engagement (any activity at all)</td><td>10 pts</td></tr>
+  </table>
+
+  <div class="callout ember">
+    <div class="h">Why rules, not ML?</div>
+    A logistic regression was trained and tested (fall training set, spring test set). Results: LR gets higher recall on health (55% vs 27%) but an 88% false alarm rate — it still doesn't understand breaks. The rules model gets 0% false alarms because the breaks are hard-coded as domain knowledge. ML doesn't know what a school calendar is.
+  </div>
+
+  <!-- 5 -->
+  <h2 id="backtest"><span class="n">5</span>Backtest results — the numbers</h2>
+  <p>Both scorers are backtested by replaying every Monday from September 2025 to July 2026 (a full school year). At each Monday snapshot, the scorer only sees data up to that date — no future leakage. Then the actual conversion outcomes are looked up and the scorer is graded.</p>
+
+  <h3>PQL backtest — Kindling vs naive</h3>
+  <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">
+    <div class="stat"><div class="big ember">73%</div><div class="lbl">Kindling precision (flagged schools that converted)</div></div>
+    <div class="stat"><div class="big" style="color:#888">37%</div><div class="lbl">Naive precision (5+ teachers built = ready)</div></div>
+    <div class="stat"><div class="big ember">30</div><div class="lbl">Kindling: schools flagged total (vs 93 naive)</div></div>
+    <div class="stat"><div class="big ember">30 days</div><div class="lbl">Kindling median lead time (vs 53 days naive)</div></div>
+  </div>
+  <p style="margin-top:14px">Read: Kindling sends reps about a third as many schools, and twice as many of them actually buy. The trade-off is recall — Kindling catches 65% of converters (22/34) vs naive's 100%. The 6 it misses are "quiet converters" with only 2 teachers.</p>
+
+  <h3>Health backtest — the proof the core idea works</h3>
+  <div class="grid">
+    <div class="stat"><div class="big ok">0%</div><div class="lbl">Kindling false alarm rate (school-day windows) — healthy schools never flagged at risk</div></div>
+    <div class="stat"><div class="big warn">100%</div><div class="lbl">Naive false alarm rate (calendar windows) — every healthy school flagged at-risk over winter break</div></div>
+  </div>
+  <div class="callout ok">
+    <div class="h">The school-day windows proof</div>
+    On the January 5th snapshot, the naive calendar-window model had flagged 37 false alarms (every healthy school looked like it was churning — because all usage dropped over winter break). The school-day window model had 3. That's the whole idea, confirmed in real simulated data.
+  </div>
+
+  <!-- 6 -->
+  <h2 id="automations"><span class="n">6</span>The 3 n8n automations</h2>
+  <p>All three workflows run on <a href="https://n8n.io">n8n cloud</a>. n8n is a visual workflow automation tool — it handles scheduling, calling the API, talking to Slack, and the Anthropic API call, with no code required. The local FastAPI server is exposed to n8n via <strong>localtunnel</strong> (a temporary public URL that points at localhost:8000).</p>
+
+  <div class="wf-card">
+    <div class="wf-time">Monday 8:00 AM · kindling_weekly.json · "Kindling notify (manual)"</div>
+    <h4>Weekly Monday brief</h4>
+    <p>The main workflow. Calls <code>GET /pql</code> → picks schools with score ≥ 60 → calls <code>GET /health</code> → picks at-risk schools → calls Claude Haiku to draft a personalized cold email (under 80 words, opens with a specific usage number, addressed to the contact's first name) → posts two Slack messages: ranked ready-to-buy list with AI email + Gmail deeplink to <code>#sales</code>, and at-risk list to <code>#customer-success</code>.</p>
+  </div>
+
+  <div class="wf-card">
+    <div class="wf-time">On-demand webhook · kindling_notify.json · "Kindling notify (manual)"</div>
+    <h4>Single-school alert</h4>
+    <p>Triggered from the React GTM console when a rep clicks "Send to Slack" on any school. Routes to <code>#sales</code> for Ready schools, <code>#customer-success</code> for At Risk. Logs the outreach to <code>data/outreach_log.json</code> (timestamp, school, channel, PQL at time of contact) so the follow-up workflow knows who was contacted and when. After publishing, its production webhook URL is stored in <code>.env</code> as <code>N8N_NOTIFY_WEBHOOK</code>.</p>
+  </div>
+
+  <div class="wf-card">
+    <div class="wf-time">Monday 9:00 AM · kindling_followup.json · "Kindling follow-up reminders"</div>
+    <h4>Stale lead follow-up</h4>
+    <p>Runs one hour after the weekly brief. Calls <code>GET /outreach/stale?days=14</code> — which returns schools that were contacted 14+ days ago with no PQL improvement since. If any are found, posts a nudge to <code>#sales</code>: "Still waiting on a reply from these schools — worth a follow-up?"</p>
+  </div>
+
+  <h3>How the Claude email drafting works</h3>
+  <p>The Anthropic API call is a node inside <code>kindling_weekly</code>. The API key is stored as an n8n <strong>Header Auth credential</strong> — it lives only in n8n's encrypted credential store, never in any file or environment variable.</p>
+  <p>The email prompt is engineered around SDR best practices:</p>
+  <ul>
+    <li>Open with a specific signal number ("4 teachers at Lincoln built projects last week") — not generic</li>
+    <li>First paragraph never starts with "I"</li>
+    <li>Banned words: "noticed," "data," "metrics," "reaching out," "hope this finds you"</li>
+    <li>Under 80 words, 3rd-grade reading level, one question only, no links</li>
+    <li>Output format: <code>SUBJECT:</code> / <code>BODY:</code> on two lines (avoids JSON parsing complexity)</li>
+    <li>Passes contact name, title, and location so the email opens "Hi Sarah," not "Hi there,"</li>
+  </ul>
+
+  <!-- 7 -->
+  <h2 id="console"><span class="n">7</span>The GTM console (React app)</h2>
+  <p>A React web app at <code>localhost:5173</code> gives the sales and CS team a live view of every school in the funnel. Seven screens:</p>
+
+  <div class="screen-card">
+    <h4>Monday Brief</h4>
+    <p>Landing screen. Four clickable KPI tiles (Ready to Buy, At Risk, Total ARR, NRR with inline breakdown). A watch list of 3 at-risk schools — always fills to 3, using real at-risk schools first and lowest-health schools flagged <code>_watch</code> if fewer. A prospects card showing the top 3 cold leads. Everything is clickable and navigates to the relevant screen.</p>
+  </div>
+
+  <div class="screen-card">
+    <h4>Ready to Buy</h4>
+    <p>Ranked list of PQL-ready free schools. Click any row to open a drawer with school details, signal breakdown, top-3 reasons, contact info, and a "Send to #sales" Slack button (routed via n8n).</p>
+  </div>
+
+  <div class="screen-card">
+    <h4>At Risk</h4>
+    <p>Paying schools with health score ≤ 70. Shows renewal date, ARR, and health signals. Drawer includes a "Send to #customer-success" button.</p>
+  </div>
+
+  <div class="screen-card">
+    <h4>Prospects</h4>
+    <p>Top 10 cold leads ranked by priority score. Expandable signal breakdown per school. Click a row → OutreachBar appears with four channels: Slack (via n8n → <code>#sales</code>), Gmail compose deeplink with pre-filled subject and body, LinkedIn contact search, Twitter/X school search. Cold email template for PQL=0 schools; dormant template for PQL 1–19.</p>
+  </div>
+
+  <div class="screen-card">
+    <h4>Pipeline</h4>
+    <p>Funnel view. School counts at each stage: Cold → Dormant → Active → Ready → Converted. Shows how many schools are at each step in the buying journey.</p>
+  </div>
+
+  <div class="screen-card">
+    <h4>Backtest</h4>
+    <p>Interactive comparison of Kindling vs naive model across a full school year. Bar chart showing precision, recall, and false alarm rate week by week. Break periods are shaded so the winter/spring effect is visually obvious.</p>
+  </div>
+
+  <div class="screen-card">
+    <h4>Automations</h4>
+    <p>n8n run history. Shows the last N workflow executions, their status, and timestamp — so the team can see when the last Monday brief fired.</p>
+  </div>
+
+  <!-- 8 -->
+  <h2 id="stack"><span class="n">8</span>Full tech stack</h2>
+  <p>No frameworks or services were added "just because." Everything here has a specific job.</p>
+
+  <h3>Backend</h3>
+  <table>
+    <tr><th>Tool</th><th>What it does here</th></tr>
+    <tr><td><span class="pill det">Python 3.10+</span></td><td>Language for the entire scoring engine and API</td></tr>
+    <tr><td><span class="pill det">DuckDB</span></td><td>Embedded analytical database — stores the synthetic event data (~347K rows) and runs all the school-day window SQL queries. No server needed; runs in-process.</td></tr>
+    <tr><td><span class="pill det">FastAPI</span></td><td>REST API at port 8000. Serves scores to the React frontend and to n8n. Auto-generates OpenAPI docs at <code>/docs</code>.</td></tr>
+    <tr><td><span class="pill det">Pandas</span></td><td>Loads query results from DuckDB into DataFrames for the scoring logic and JSON response building.</td></tr>
+    <tr><td><span class="pill det">Uvicorn</span></td><td>ASGI server that runs FastAPI.</td></tr>
+  </table>
+
+  <h3>Frontend</h3>
+  <table>
+    <tr><th>Tool</th><th>What it does here</th></tr>
+    <tr><td><span class="pill blue">React 18 + Vite</span></td><td>Component framework + build tool. Vite for fast hot-reload dev.</td></tr>
+    <tr><td><span class="pill blue">TypeScript</span></td><td>Type-safe API response shapes and component props across all 7 screens.</td></tr>
+    <tr><td><span class="pill blue">TanStack Query v5</span></td><td>Fetches and caches all API data. Handles loading states, stale data, and re-fetching — no manual <code>useState</code> for async data.</td></tr>
+    <tr><td><span class="pill blue">Tailwind CSS</span></td><td>Utility-first CSS. Design tokens: paper <code>#FAF8F5</code>, ember <code>#E2572B</code> (PQL), risk <code>#B42318</code> (health), steady <code>#2F7D5B</code>.</td></tr>
+  </table>
+
+  <h3>Automation and AI</h3>
+  <table>
+    <tr><th>Tool</th><th>What it does here</th></tr>
+    <tr><td><span class="pill ai">n8n cloud</span></td><td>Visual workflow automation — the sole Slack message router. Runs 3 workflows on schedule. No backend code handles Slack directly.</td></tr>
+    <tr><td><span class="pill ai">Claude Haiku</span></td><td>Drafts the cold outreach email in the Monday brief. Called from n8n using the Anthropic API (Header Auth credential in n8n's encrypted store). Never accessed from Python code.</td></tr>
+    <tr><td><span class="pill ai">localtunnel</span></td><td>Creates a temporary public HTTPS URL pointing at localhost:8000, so n8n cloud can call the local FastAPI server. URL changes on every restart.</td></tr>
+    <tr><td><span class="pill ai">Slack Incoming Webhooks</span></td><td>n8n posts to <code>#sales</code> and <code>#customer-success</code> via two webhook URLs. URLs live only in n8n nodes and local <code>.env</code> — never committed to git.</td></tr>
+  </table>
+
+  <h3>Data and simulation</h3>
+  <table>
+    <tr><th>File</th><th>What it does</th></tr>
+    <tr><td><code>kindling/simulate.py</code></td><td>Generates synthetic data: 200 schools (28 converters, 10 stalled, 24 solo stars, 20 builders, 38 dormant free; 34 healthy, 12 expander, 22 churner, 12 healthy-break-renewal paid). Each school has a real US city, district name, contact name/title, and <code>.edu</code> email. Runs in ~1 second.</td></tr>
+    <tr><td><code>kindling/features.py</code></td><td>Point-in-time feature extraction using DuckDB SQL — takes an <code>as_of</code> date and returns per-school stats in school-day windows.</td></tr>
+    <tr><td><code>data/kindling.duckdb</code></td><td>The event database (gitignored — regenerated on <code>python -m kindling.simulate</code>).</td></tr>
+    <tr><td><code>data/outreach_log.json</code></td><td>Flat-file log of every school contacted via Slack. Stores school ID, name, channel, timestamp, and PQL at time of contact.</td></tr>
+  </table>
+
+  <h3>Security</h3>
+  <table>
+    <tr><th>Mechanism</th><th>What it protects</th></tr>
+    <tr><td>Pre-commit hook (<code>.git/hooks/pre-commit</code>)</td><td>Blocks commits containing live Slack webhook URLs, Anthropic API keys, or Slack bot tokens. Runs automatically before every commit.</td></tr>
+    <tr><td><code>.gitignore</code></td><td><code>.env</code>, <code>*.duckdb</code>, <code>outreach_log.json</code> — real keys and data never committed.</td></tr>
+    <tr><td>n8n encrypted credentials</td><td>Anthropic API key stored as a Header Auth credential in n8n's encrypted store. Not accessible from outside n8n.</td></tr>
+    <tr><td>Redacted JSON in git</td><td>Slack webhook URLs in <code>n8n/*.json</code> are replaced with <code>YOUR_SLACK_WEBHOOK_SALES</code> / <code>YOUR_SLACK_WEBHOOK_CS</code> placeholders. Real URLs restored locally after each clone.</td></tr>
+  </table>
+
+  <!-- 9 -->
+  <h2 id="limits"><span class="n">9</span>Honest limits</h2>
+
+  <div class="callout warn">
+    <div class="h">Synthetic data only</div>
+    Every school, teacher, and event is generated by <code>simulate.py</code>. The simulator is carefully designed to stress-test the scorer (break seasonality, stalled schools, quiet converters), but real data will be messier. The scoring rules will need calibration once connected to production.
+  </div>
+
+  <table>
+    <tr><th>Limit</th><th>What it means in production</th></tr>
+    <tr><td><strong>One shared school calendar</strong></td><td>All 200 schools use the same national break calendar. Real districts have different break dates — a Houston school has different holidays than a Boston school. Production needs per-district calendars.</td></tr>
+    <tr><td><strong>localtunnel URL changes on restart</strong></td><td>Every time the laptop reboots, the localtunnel URL changes and 4 HTTP Request nodes across 2 n8n workflows need manual updates. This is the most common operational pain point.</td></tr>
+    <tr><td><strong>outreach_log.json is a flat file</strong></td><td>Fine for testing (one person using it). In production this belongs in a database with proper indexing on school ID and timestamp.</td></tr>
+    <tr><td><strong>Stalled schools are unbeatable</strong></td><td>Schools that look like buyers but never buy (budget freeze, committee approval required) are indistinguishable from real buyers with this data alone. This is the honest precision ceiling — not a bug in the scorer.</td></tr>
+    <tr><td><strong>No expansion revenue in NRR</strong></td><td>Seat counts and ARR are static in the simulator. Real NRR would include expansion dollars when a district adds more seats.</td></tr>
+  </table>
+
+  <!-- 10 -->
+  <h2 id="future"><span class="n">10</span>Where it goes next</h2>
+
+  <h3>To connect real data</h3>
+  <div class="step"><div class="num">1</div><div class="body">Replace <code>kindling/simulate.py</code> with a live query against the production database (or a read replica). The schema Kindling expects: <code>school_id</code>, <code>name</code>, <code>city</code>, <code>state</code>, <code>contact_name</code>, <code>contact_title</code>, <code>contact_email</code>, <code>license_seats</code>, <code>renewal_date</code>, <code>arr</code>.</div></div>
+  <div class="step"><div class="num">2</div><div class="body">Run the backtests on actual conversion history to calibrate thresholds: <code>python -m kindling.backtest pql</code> and <code>python -m kindling.backtest health</code>. Tune <code>PQL_READY_THRESHOLD</code> and <code>HEALTH_RISK_THRESHOLD</code> in <code>kindling/config.py</code>.</div></div>
+  <div class="step"><div class="num">3</div><div class="body">Replace the single shared US school calendar with per-district calendars. Different districts have different break dates — this is the main accuracy improvement available in production.</div></div>
+  <div class="step"><div class="num">4</div><div class="body">Replace localtunnel with a proper deployment (containerized FastAPI behind a stable URL, or a managed cloud service). This eliminates the URL-update pain on every restart.</div></div>
+
+  <h3>What doesn't change</h3>
+  <p>The scoring engine (<code>features.py</code>, <code>pql.py</code>, <code>health.py</code>), the API, the React frontend, and all 3 n8n automations stay exactly the same. The only parts that need updating are the data source, the school calendars, and the deployment URL. The architecture is correct — it just needs real data to dial in the numbers.</p>
+
+  <hr class="soft" />
+
+  <h3>The design thesis</h3>
+  <p>The same principle that makes Faxtract work applies here: <strong>use AI only where judgment is actually required, and keep everything else deterministic.</strong></p>
+  <div>
+    <span class="pill det">PQL scoring</span>
+    <span class="pill det">Health scoring</span>
+    <span class="pill det">School-day window math</span>
+    <span class="pill det">Prospect ranking</span>
+    <span class="pill det">Pipeline funnel</span>
+    <span class="pill det">Backtest logic</span>
+    <span class="pill det">Outreach logging</span>
+    <span class="pill det">API routing</span>
+    <span class="pill det">Slack channel routing</span>
+  </div>
+  <p style="margin-top:10px">AI is reserved for the one genuinely judgment-shaped spot:</p>
+  <div>
+    <span class="pill ai">Drafting a personalized cold email from usage signals (Claude Haiku in n8n)</span>
+  </div>
+  <p>Writing a compelling cold email from a set of usage numbers is a judgment call — the right tone, the right opening line, what to emphasize. That's where an LLM earns its place. Everything else — the scoring, the alerts, the routing, the logging — is deterministic and free.</p>
+
+  <div class="foot">
+    Kindling · PLG scoring engine for K-12 edtech.<br>
+    Scoring: Python + DuckDB + FastAPI. Frontend: React + Vite + TypeScript + TanStack Query. Automations: n8n cloud (3 workflows). AI: Claude Haiku (email drafting). Data: 200 synthetic schools, 1,760 teachers, 347K events.
+  </div>
+
+</div>
+</body>
+</html>

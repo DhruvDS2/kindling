@@ -5,5 +5,33 @@
     "channel": "sales",
     "contacted_at": "2026-11-02",
     "pql_score_at_contact": 53
+  },
+  {
+    "school_id": "s112",
+    "name": "Ivyhall Commons Academy",
+    "channel": "cs",
+    "contacted_at": "2026-11-17",
+    "pql_score_at_contact": 0
+  },
+  {
+    "school_id": "s008",
+    "name": "Halcyon Hollow Country Day",
+    "channel": "cs",
+    "contacted_at": "2026-11-17",
+    "pql_score_at_contact": 0
+  },
+  {
+    "school_id": "s008",
+    "name": "Halcyon Hollow Country Day",
+    "channel": "cs",
+    "contacted_at": "2026-11-17",
+    "pql_score_at_contact": 0
+  },
+  {
+    "school_id": "s043",
+    "name": "Wrenfield Glen Academy",
+    "channel": "sales",
+    "contacted_at": "2026-11-19",
+    "pql_score_at_contact": 72
   }
 ]
