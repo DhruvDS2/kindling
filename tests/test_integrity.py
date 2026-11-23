@@ -32,7 +32,8 @@ def test_features_never_use_future_events(db_path, tmp_path, as_of):
     cut_path = tmp_path / "cut.duckdb"
     cut = duckdb.connect(str(cut_path))
     cut.execute(f"ATTACH '{db_path}' AS src (READ_ONLY)")
-    for t in ("calendar", "schools", "teachers", "events"):
+    # Calendars stay whole: a district publishes its calendar before the year starts.
+    for t in ("calendar", "school_calendars", "schools", "teachers", "events"):
         cut.execute(f"CREATE TABLE {t} AS SELECT * FROM src.{t}")
     cut.execute("DELETE FROM events WHERE day > ?", [as_of])
     after = account_features(cut, [as_of])
@@ -79,3 +80,73 @@ def test_health_fewer_false_alarms_than_naive(db_path):
         f"School-day windows ({sd_alarms}) should flag fewer schools than "
         f"calendar windows ({cal_alarms}) on {as_of}"
     )
+
+
+# ---------- per-district calendars ----------
+
+@pytest.fixture(scope="module")
+def district_db(tmp_path_factory):
+    from kindling import simulate
+    path = tmp_path_factory.mktemp("districts") / "districts.duckdb"
+    simulate.write(simulate.World(calendars="district").build().frames(), path)
+    return path
+
+
+def test_default_world_puts_every_school_on_the_shared_calendar(db_path):
+    con = duckdb.connect(str(db_path), read_only=True)
+    ids = con.sql("SELECT DISTINCT calendar_id FROM schools").fetchall()
+    assert ids == [(C.SHARED_CALENDAR,)]
+
+
+def test_district_window_skips_the_districts_own_break(district_db):
+    """On the Monday after New England's April vacation, a Northeast school's 10
+    school days must reach back past the vacation; the national calendar's window
+    must not (the national calendar has no April break)."""
+    con = duckdb.connect(str(district_db), read_only=True)
+    as_of = date(2026, 4, 27)
+    own = account_features(con, [as_of], mode="school_days")
+    shared = account_features(con, [as_of], mode="school_days_shared")
+    ne = own[own.calendar_id == "northeast"].school_id
+    assert len(ne) > 0
+    # same school, two windows: on its own calendar the vacation week is skipped,
+    # so fewer of its school days are dead and it shows more student activity
+    own_ne = own[own.school_id.isin(ne)].student_sessions.sum()
+    shared_ne = shared[shared.school_id.isin(ne)].student_sessions.sum()
+    assert own_ne > shared_ne
+
+
+def test_health_not_scored_before_a_full_window(district_db):
+    """Northeast schools start Sep 2: on Sep 1 there is no window to measure."""
+    con = duckdb.connect(str(district_db), read_only=True)
+    feats = account_features(con, [date(2025, 9, 1)], mode="school_days")
+    scored = health.score(feats)
+    ne_paid = feats[(feats.calendar_id == "northeast") & (feats.plan_at_start == "paid")]
+    assert len(ne_paid) > 0
+    assert not scored.school_id.isin(ne_paid.school_id).any()
+
+
+# ---------- admin rule (run 3) ----------
+
+def test_admin_rule_is_off_by_default_and_only_adds_admin_schools(db_path):
+    con = duckdb.connect(str(db_path), read_only=True)
+    feats = account_features(con, [date(2025, 11, 3), date(2026, 2, 2), date(2026, 3, 23)])
+    run2 = pql.score(feats)
+    run3 = pql.score(feats, admin_threshold=pql.ADMIN_READY_THRESHOLD)
+    # default: exactly the score rule
+    assert ((run2.status == "Ready") == (run2.pql_score >= pql.READY_THRESHOLD)).all()
+    assert set(run2.ready_rule.dropna()) <= {"score"}
+    # run 3 never removes a Ready school, and every school it adds has an admin
+    assert (run3.status[run2.status == "Ready"] == "Ready").all()
+    added = run3[(run3.status == "Ready") & (run2.status != "Ready")]
+    assert (added.ready_rule == "admin").all()
+    assert added.admin_signed_up_on.notna().all()
+    assert added.pql_score.between(pql.ADMIN_READY_THRESHOLD, pql.READY_THRESHOLD - 1).all()
+
+
+def test_scores_handle_dates_before_school_starts(db_path):
+    """Aug 4 is summer for every school: health scores nobody, and nothing crashes."""
+    con = duckdb.connect(str(db_path), read_only=True)
+    feats = account_features(con, [date(2025, 8, 4)])
+    scored = health.score(feats)
+    assert scored.empty and {"health_score", "reasons", "status"} <= set(scored.columns)
+    assert set(pql.score(feats).columns) >= {"pql_score", "reasons", "status", "ready_rule"}

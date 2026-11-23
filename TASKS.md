@@ -36,4 +36,15 @@ One task at a time. Each one ends with something you can run. Update PROGRESS.md
 - [x] 4.2 Static HTML report with the backtest table and chart
 - [x] 4.3 Logistic regression vs. rules on the same backtest (honest comparison)
 - [x] 4.4 README: problem, diagram, results table, how to run, limits
-- [ ] 4.5 2-minute demo video
+- [ ] 4.5 2-minute demo video (deferred: after the UI changes)
+
+## Phase 5: Production realism (separate runs; headline numbers don't move)
+- [x] 5.0 Re-baseline every published number against the current code
+- [x] 5.1 Per-district calendars: `school_calendars` table, `calendar_id` per school, district world (`simulate.py --calendars district`), `backtest.py districts`
+- [x] 5.2 PQL run 3: lower Ready threshold when an admin has signed up, plus an admin-noise stress test (`backtest.py pql_admin`). Off by default.
+- [x] 5.3 Threshold sweep, tuned on fall and graded on spring, runnable on real data with `--db` (`backtest.py sweep`)
+- [x] 5.4 Clay → n8n: decided not to wire it (see PROGRESS.md decisions)
+- [ ] 5.5 Pre-UI readiness audit (`docs/PRE-UI-AUDIT-RUN.md` → `docs/gates/PRE-UI-READINESS.md`)
+
+## Phase 6: UI changes
+- [ ] Scope set by the pre-UI audit (5.5)

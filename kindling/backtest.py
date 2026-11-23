@@ -295,8 +295,242 @@ def run_lr_health():
     return table
 
 
+# ---------- shared helpers for the experiment runs (5.1–5.3) ----------
+
+PCT_ROWS = {"precision", "recall", "recall (churners)", "false alarm rate"}
+
+
+def _fmt(table: pd.DataFrame) -> pd.DataFrame:
+    out = table.copy().astype(object)
+    for col in out.columns:
+        out[col] = [f"{v:.0%}" if k in PCT_ROWS else
+                    (f"{v:.0f}" if isinstance(v, float) else v)
+                    for k, v in table[col].items()]
+    return out
+
+
+def _connect_or_exit(path):
+    if not path.exists():
+        rel = path.relative_to(C.ROOT) if path.is_relative_to(C.ROOT) else path
+        sys.exit(f"{rel} not found. Build it first (see the Makefile: make experiments).")
+    return connect(path)
+
+
+def _write(name: str, lines: list[str]):
+    C.RESULTS_DIR.mkdir(exist_ok=True)
+    (C.RESULTS_DIR / name).write_text("\n".join(lines) + "\n")
+    print("\n".join(lines))
+
+
+# ---------- 5.1 per-district calendars ----------
+
+def run_districts():
+    """Health and PQL in the district world: one national calendar vs each district's own."""
+    con = _connect_or_exit(C.DISTRICT_DB_PATH)
+    truth = con.sql("SELECT * FROM truth").df()
+    cal_of = con.sql("SELECT school_id, calendar_id FROM schools").df()
+    dates = list(mondays())
+    modes = {
+        "Naive: calendar windows": "calendar",
+        "School days, one national calendar": "school_days_shared",
+        "Kindling: school days, district calendars": "school_days",
+    }
+    health_res, pql_res, by_cal = {}, {}, {}
+    for label, mode in modes.items():
+        feats = account_features(con, dates, mode=mode)
+        scored = health.score(feats)
+        health_res[label] = evaluate_health(scored, truth)
+        pql_res[label] = evaluate(pql.score(feats), truth)
+        healthy = truth[truth.churns_on.isna()].school_id
+        fa = first_risk_flags(scored)
+        fa = fa[fa.school_id.isin(healthy)].merge(cal_of, on="school_id")
+        by_cal[label] = fa.calendar_id.value_counts()
+    paid_cal = cal_of[cal_of.school_id.isin(truth[truth.renews.notna()].school_id)]
+    healthy_cal = cal_of[cal_of.school_id.isin(truth[truth.churns_on.isna() & truth.renews.notna()].school_id)]
+    fa_table = pd.DataFrame(by_cal).reindex(sorted(paid_cal.calendar_id.unique())).fillna(0).astype(int)
+    fa_table.insert(0, "healthy paid schools", healthy_cal.calendar_id.value_counts())
+    fa_table.index.name = "calendar"
+
+    _write("district_calendar_backtest.md", [
+        "# District calendars backtest", "",
+        "A second simulated world (`python -m kindling.simulate --calendars district`): same "
+        "schools and archetypes, but each school follows its district's calendar (different "
+        "start and end dates, February and April vacations in the Northeast, early-March spring "
+        "break in the Southwest). Scoring rules and thresholds are unchanged from the main backtest.", "",
+        "## Health (paying schools)", "", _fmt(pd.DataFrame(health_res)).to_markdown(), "",
+        "## False alarms by calendar", "",
+        "Healthy schools flagged at risk at least once, by the calendar the school actually follows.", "",
+        fa_table.to_markdown(), "",
+        "## PQL (free schools)", "", _fmt(pd.DataFrame(pql_res)).to_markdown(), "",
+    ])
+
+
+# ---------- 5.2 admin-signup threshold (run 3) ----------
+
+def _pql_extra(scored: pd.DataFrame, truth: pd.DataFrame, teachers: pd.DataFrame) -> dict:
+    """Recall on real converters only (not decoys that bought by chance), and on small ones."""
+    flags = first_flags(scored).merge(truth, on="school_id")
+    hit = flags.converts_on.notna() & (pd.to_datetime(flags.converts_on) > pd.to_datetime(flags.first_flag))
+    hits = set(flags[hit].school_id)
+    real = truth[(truth.archetype == "converter") & truth.converts_on.notna()
+                 & truth.school_id.isin(scored.school_id)]
+    small = real[real.school_id.isin(teachers[teachers.n <= 3].school_id)]
+    stalled = flags[flags.archetype == "stalled"]
+    return {
+        "real converters caught": f"{len(hits & set(real.school_id))} / {len(real)}",
+        "small converters (≤3 teachers) caught": f"{len(hits & set(small.school_id))} / {len(small)}",
+        "stalled schools flagged": len(stalled),
+        "flagged by the admin rule": int((scored.groupby("school_id").ready_rule
+                                          .apply(lambda r: (r == "admin").any())).sum())
+                                     if "ready_rule" in scored else 0,
+    }
+
+
+def _admin_table(path) -> pd.DataFrame:
+    con = _connect_or_exit(path)
+    truth = con.sql("SELECT * FROM truth").df()
+    teachers = con.sql("SELECT school_id, count(*) AS n FROM teachers "
+                       "WHERE role = 'teacher' GROUP BY 1").df()
+    feats = account_features(con, list(mondays()), mode="school_days")
+    runs = {
+        "Naive: 5+ tutors built": pql.naive_activation(feats),
+        f"Run 2: score ≥ {pql.READY_THRESHOLD}": pql.score(feats),
+        f"Run 3: + admin rule (≥ {pql.ADMIN_READY_THRESHOLD} with an admin)":
+            pql.score(feats, admin_threshold=pql.ADMIN_READY_THRESHOLD),
+    }
+    return pd.DataFrame({k: {**evaluate(v, truth), **_pql_extra(v, truth, teachers)}
+                         for k, v in runs.items()})
+
+
+def run_pql_admin():
+    lines = [
+        "# PQL run 3: lower threshold for schools with an admin", "",
+        f"Run 2 is the headline PQL backtest: Ready at score ≥ {pql.READY_THRESHOLD}. Run 3 keeps "
+        f"that rule and adds one: a school where an admin has signed up is also Ready at ≥ "
+        f"{pql.ADMIN_READY_THRESHOLD}. The aim is the quiet converters run 2 misses (2–3 teachers, "
+        "lighter use). Weights unchanged; the 40 comes from reasoning about the quiet-converter "
+        "profile (see config.py), not from these results.", "",
+        "## Default world", "", _fmt(_admin_table(C.DB_PATH)).to_markdown(), "",
+        "**Caveat.** In the default simulator only converter-shaped schools (converters and "
+        "stalled) ever get an admin signup, so an admin rule is favoured by construction. "
+        "The stress test below gives admins to non-buying schools too.", "",
+    ]
+    if C.ADMIN_NOISE_DB_PATH.exists():
+        lines += [
+            "## Stress test: admins at 25% of non-buying schools", "",
+            "Same world, but a quarter of solo-star, builder and dormant schools also get an "
+            "admin signup 1–8 weeks after their first teacher (`simulate.py --admin-noise 0.25`).", "",
+            _fmt(_admin_table(C.ADMIN_NOISE_DB_PATH)).to_markdown(), "",
+        ]
+    _write("pql_admin_threshold.md", lines)
+
+
+# ---------- 5.3 threshold sweep (ready for real data) ----------
+
+PQL_SWEEP = list(range(30, 95, 5))
+HEALTH_SWEEP = list(range(40, 95, 5))
+
+
+def _split(scored: pd.DataFrame):
+    asof = pd.to_datetime(scored.as_of)
+    return scored[asof <= pd.Timestamp(TRAIN_CUTOFF)], scored[asof > pd.Timestamp(TRAIN_CUTOFF)]
+
+
+def _pick(rows: list[dict], ok, better) -> dict:
+    """Best row that meets the business rule, or None if no row does."""
+    passing = [r for r in rows if ok(r)]
+    return max(passing, key=better) if passing else None
+
+
+def run_sweep(db_path=None):
+    """Sweep the Ready and At-risk thresholds. Pick on fall, report on spring (RULES.md #3).
+
+    On synthetic data this is a dry run: config.py is not changed. Point --db at a
+    database built from real usage and outcomes (same schema) to tune for real.
+    """
+    path = db_path or C.DB_PATH
+    con = _connect_or_exit(path)
+    truth = con.sql("SELECT * FROM truth").df()
+    feats = account_features(con, list(mondays()), mode="school_days")
+
+    pql_base, health_base = pql.score(feats), health.score(feats)
+    pql_rows, health_rows = [], []
+    for t in PQL_SWEEP:
+        s = pql_base.assign(status=np.where(pql_base.pql_score >= t, "Ready", "Not yet"))
+        fall, spring = (evaluate(x, truth) for x in _split(s))
+        pql_rows.append({"threshold": t,
+                         "fall flagged": fall["schools flagged"], "fall precision": fall["precision"],
+                         "fall recall": fall["recall"],
+                         "spring flagged": spring["schools flagged"], "spring precision": spring["precision"],
+                         "spring recall": spring["recall"],
+                         "spring lead (days)": spring["median lead time (days)"]})
+    for t in HEALTH_SWEEP:
+        s = health_base.assign(status=np.where(health_base.health_score < t, "At risk", "Healthy"))
+        fall, spring = (evaluate_health(x, truth) for x in _split(s))
+        health_rows.append({"threshold": t,
+                            "fall recall": fall["recall (churners)"], "fall false alarms": fall["false alarm rate"],
+                            "spring recall": spring["recall (churners)"],
+                            "spring false alarms": spring["false alarm rate"]})
+
+    pql_pick = _pick(pql_rows, lambda r: r["fall precision"] >= C.TUNE_PQL_MIN_PRECISION,
+                     lambda r: (r["fall recall"], r["threshold"]))
+    health_pick = _pick(health_rows, lambda r: r["fall false alarms"] <= C.TUNE_HEALTH_MAX_FALSE_ALARM,
+                        lambda r: (r["fall recall"], -r["threshold"]))
+
+    def table(rows, current, pick):
+        df = pd.DataFrame(rows).set_index("threshold")
+        out = df.copy().astype(object)
+        for c in df.columns:
+            out[c] = [f"{v:.0%}" if ("precision" in c or "recall" in c or "alarm" in c) else
+                      (f"{v:.0f}" if isinstance(v, float) else v) for v in df[c]]
+        out.index = [f"{t}" + (" ← config" if t == current else "") +
+                     (" ← fall pick" if pick and t == pick["threshold"] else "") for t in df.index]
+        out.index.name = "threshold"
+        return out.to_markdown()
+
+    def verdict(pick, current, rule, holds):
+        if pick is None:
+            return f"No threshold met the rule ({rule}) on fall. Keep the config value and revisit the rule."
+        spring = ("it also meets the rule on spring" if holds(pick)
+                  else "it **fails the same rule on spring**, so don't adopt it")
+        if pick["threshold"] == current:
+            return f"Fall pick ({rule}): **{pick['threshold']}**, same as config.py; {spring}."
+        return (f"Fall pick ({rule}): **{pick['threshold']}** vs {current} in config.py; {spring}. "
+                "config.py is not changed by this run.")
+
+    src = path.relative_to(C.ROOT) if path.is_relative_to(C.ROOT) else path
+    _write("threshold_sweep.md", [
+        "# Threshold sweep", "",
+        f"Data: `{src}`. Each threshold is picked on fall Mondays (≤ {TRAIN_CUTOFF}) and reported "
+        "on spring Mondays, so the pick is never graded on the data it was chosen from (RULES.md #3).", "",
+        "**On synthetic data this is a dry run.** It shows how thresholds will be set once real "
+        "outcomes exist; it does not change config.py. Fall and spring see different schools "
+        "(spring only scores schools that hadn't converted by January; fall can only catch "
+        "churners whose decline starts in fall), so compare rows within a column, not across halves.", "",
+        f"## PQL Ready threshold (business rule: fall precision ≥ {C.TUNE_PQL_MIN_PRECISION:.0%}, then most recall)", "",
+        table(pql_rows, pql.READY_THRESHOLD, pql_pick), "",
+        verdict(pql_pick, pql.READY_THRESHOLD, f"precision ≥ {C.TUNE_PQL_MIN_PRECISION:.0%}",
+                lambda r: r["spring precision"] >= C.TUNE_PQL_MIN_PRECISION), "",
+        f"## Health At-risk threshold (business rule: fall false alarms ≤ {C.TUNE_HEALTH_MAX_FALSE_ALARM:.0%}, then most recall)", "",
+        table(health_rows, health.RISK_THRESHOLD, health_pick), "",
+        verdict(health_pick, health.RISK_THRESHOLD, f"false alarms ≤ {C.TUNE_HEALTH_MAX_FALSE_ALARM:.0%}",
+                lambda r: r["spring false alarms"] <= C.TUNE_HEALTH_MAX_FALSE_ALARM), "",
+        "## On real data", "",
+        "1. Load real usage into the same tables (`schools`, `teachers`, `events`, `school_calendars`) "
+        "and real outcomes into `truth` (converted on / churned on). Outcomes only ever feed this module.",
+        "2. Wait for one semester of outcomes, then run `python -m kindling.backtest sweep --db <path>`.",
+        "3. Adopt a new threshold only if its spring row holds up, and log the change in PROGRESS.md.",
+        "4. Agree the two business rules above with sales and CS first: they decide the threshold, not the sweep.",
+    ])
+
+
 if __name__ == "__main__":
-    which = sys.argv[1] if len(sys.argv) > 1 else "pql"
+    args = sys.argv[1:]
+    which = args[0] if args else "pql"
+    db_arg = None
+    if "--db" in args:
+        from pathlib import Path
+        db_arg = Path(args[args.index("--db") + 1]).resolve()
     if which == "pql":
         run_pql()
     elif which == "health":
@@ -304,5 +538,11 @@ if __name__ == "__main__":
     elif which == "lr":
         run_lr_pql()
         run_lr_health()
+    elif which == "districts":
+        run_districts()
+    elif which == "pql_admin":
+        run_pql_admin()
+    elif which == "sweep":
+        run_sweep(db_arg)
     else:
         sys.exit(f"unknown backtest: {which}")

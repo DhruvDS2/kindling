@@ -19,6 +19,7 @@ SESSION_TREND_MAX    = C.HEALTH_SESSION_TREND_MAX
 RENEWAL_BUFFER_MAX   = C.HEALTH_RENEWAL_BUFFER_MAX
 SEAT_UTILISATION_MAX = C.HEALTH_SEAT_UTIL_MAX
 RENEWAL_BUFFER_DAYS  = C.HEALTH_RENEWAL_BUFFER_DAYS
+MIN_SCHOOL_DAYS      = C.HEALTH_MIN_SCHOOL_DAYS
 
 
 def _teacher_retention(cur, prev) -> float:
@@ -90,8 +91,17 @@ def _reasons(row) -> list[tuple[float, str]]:
 
 
 def score(features: pd.DataFrame) -> pd.DataFrame:
-    """Score paying schools for health. Expects output of features.health_features."""
+    """Score paying schools for health. Expects output of features.health_features.
+
+    Schools whose school year hasn't produced one full window yet are left out:
+    there is no trend to measure.
+    """
     df = features[features.plan_at_start == "paid"].copy()
+    if "school_days_elapsed" in df.columns:
+        df = df[df.school_days_elapsed >= MIN_SCHOOL_DAYS]
+    if df.empty:  # e.g. every school still in summer: nothing to score
+        return df.assign(health_score=pd.Series(dtype=int), reasons=pd.Series(dtype=object),
+                         status=pd.Series(dtype=object))
     if "days_to_renewal" not in df.columns:
         df["days_to_renewal"] = (
             pd.to_datetime(df.renewal_date) - pd.to_datetime(df.as_of)

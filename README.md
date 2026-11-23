@@ -30,6 +30,18 @@ Schools go quiet every Thanksgiving, winter break, and spring break. A naive chu
 | **PQL precision** (ready schools that actually buy) | 37% | **77%** |
 | **Health false alarm rate** (healthy schools flagged as at-risk) | **100%** | **0%** |
 
+Districts don't share breaks either. In a second simulated world where every school follows its own district's calendar (New England's February and April vacations, Texas's early-March spring break, Southern schools ending in May), counting school days on one national calendar still fires on **83%** of healthy schools. Counting them on each district's calendar: **0%**. Details in `results/district_calendar_backtest.md`.
+
+### Experiments (separate runs, never mixed into the headline numbers)
+
+Run all three with `make experiments`.
+
+| Run | Result | File |
+|---|---|---|
+| District calendars | Health false alarms: 100% naive → 83% national calendar → **0%** district calendars. PQL unchanged (78–79% precision either way). | `results/district_calendar_backtest.md` |
+| PQL run 3: lower threshold (40) when an admin has signed up | Catches 2 of the 4 real converters run 2 misses (26/28 vs 24/28); precision 77% → 74%. If admins also sign up at non-buying schools (stress test), precision falls to 63%. **Off by default.** | `results/pql_admin_threshold.md` |
+| Threshold sweep, tuned on fall, graded on spring | Health: fall pick is 70, same as config, and it holds on spring. PQL: fall pick is 35, which fails the same precision rule on spring, so 60 stays. A dry run; ready for real data. | `results/threshold_sweep.md` |
+
 ---
 
 ## What you get
@@ -158,13 +170,15 @@ Trigger the weekly workflow manually to confirm everything works:
 This repo ships with synthetic data (200 fake schools, one full school year). To connect real data:
 
 1. Replace `kindling/simulate.py` with a query against your production database
-2. Make sure your schools table has: `school_id`, `name`, `city`, `state`, `contact_name`, `contact_title`, `contact_email`, `license_seats`, `renewal_date`, `arr`
-3. Run the backtest to calibrate thresholds on your actual conversion history:
+2. Make sure your schools table has: `school_id`, `name`, `city`, `state`, `calendar_id`, `contact_name`, `contact_title`, `contact_email`, `seats`, `renewal_date`, `arr`
+3. Load each district's calendar into `school_calendars` (`calendar_id`, `day`, `kind`, `instr_idx`). Districts publish them before the year starts; NCES district IDs make a good `calendar_id`. Schools without one fall back to a regional calendar.
+4. Put real outcomes (converted on, churned on) in the `truth` table. Only `backtest.py` reads it.
+5. After one semester of outcomes, tune thresholds on fall and check them on spring:
    ```bash
-   python -m kindling.backtest pql
-   python -m kindling.backtest health
+   python -m kindling.backtest sweep --db path/to/real.duckdb
    ```
-4. Tune `PQL_READY_THRESHOLD` and `HEALTH_RISK_THRESHOLD` in `kindling/config.py` based on results
+   Change `PQL_READY_THRESHOLD` / `HEALTH_RISK_THRESHOLD` in `kindling/config.py` only if the spring row holds up, and log it in PROGRESS.md. The business rules the sweep uses (reps can work a list where 6 in 10 buy; CS can absorb 1 false alarm in 20) are assumptions to agree with sales and CS first.
+6. Rerun `python -m kindling.backtest pql_admin` to see whether admin signups predict buying in real data. In the simulation that's partly built in.
 
 Everything else — the scoring engine, API, frontend, and automations — stays the same.
 
@@ -189,7 +203,10 @@ Everything else — the scoring engine, API, frontend, and automations — stays
 ## Known limits
 
 - **Synthetic data only.** The simulator is built to stress-test the scorer. Real data will be messier.
-- **One shared school calendar.** Production would need per-district calendars — different districts have different break dates.
+- **Calendars are regional in the simulation.** The district world gives every school in a region the same calendar. Real districts set their own, so production keys calendars by district and needs a source for them (district websites, or ask the admin at onboarding).
+- **The default world still uses one national calendar.** That keeps the headline numbers stable; the district world is a separate run.
+- **School days don't help the PQL score.** Calendar windows score about the same. School days earn their keep on health.
+- **Admin signups are clean in the simulator.** Only converter-shaped schools get admins by default, which flatters any admin rule. The admin rule stays off until real data says otherwise.
 - **localtunnel URLs change on restart.** When you reboot, update the 4 HTTP Request nodes across the two API-calling workflows in n8n.
 - **Stalled schools are unbeatable.** Schools that look like buyers but never buy (budget freeze) are indistinguishable from real buyers. This is the honest precision ceiling — not a bug.
 - **outreach_log.json is a flat file.** Fine for testing; in production this would live in a database.

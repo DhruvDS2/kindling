@@ -8,11 +8,13 @@ Weights were set by reasoning about the motion, not tuned on backtest results.
 """
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from kindling import config as C
 
 READY_THRESHOLD     = C.PQL_READY_THRESHOLD
+ADMIN_READY_THRESHOLD = C.PQL_ADMIN_READY_THRESHOLD
 BREADTH_MAX         = C.PQL_BREADTH_MAX
 BREADTH_CAP         = C.PQL_BREADTH_CAP
 DEPTH_MAX           = C.PQL_DEPTH_MAX
@@ -42,16 +44,29 @@ def _reasons(row) -> list[tuple[float, str]]:
     return r
 
 
-def score(features: pd.DataFrame) -> pd.DataFrame:
-    """Score free, not-yet-converted schools. Expects output of features.account_features."""
+def score(features: pd.DataFrame, admin_threshold: int | None = None) -> pd.DataFrame:
+    """Score free, not-yet-converted schools. Expects output of features.account_features.
+
+    admin_threshold: when set, a school where an admin has signed up is also
+    "Ready" at this lower score (run 3). Off by default. ready_rule says which
+    rule made a school Ready: "score" or "admin".
+    """
     df = features[(features.plan_at_start == "free")
                   & features.converted_on.isna()
                   & features.first_signup.notna()].copy()
+    if df.empty:  # e.g. before any free school has signed up
+        return df.assign(pql_score=pd.Series(dtype=int), reasons=pd.Series(dtype=object),
+                         status=pd.Series(dtype=object), ready_rule=pd.Series(dtype=object))
     reasons = df.apply(_reasons, axis=1)
     df["pql_score"] = reasons.apply(lambda r: round(min(max(sum(p for p, _ in r), 0), 100)))
     df["reasons"] = reasons.apply(
         lambda r: [t for _, t in sorted(r, key=lambda x: abs(x[0]), reverse=True)[:3]])
-    df["status"] = df.pql_score.apply(lambda s: "Ready" if s >= READY_THRESHOLD else "Not yet")
+    by_score = df.pql_score >= READY_THRESHOLD
+    by_admin = pd.Series(False, index=df.index)
+    if admin_threshold is not None:
+        by_admin = ~by_score & df.admin_signed_up_on.notna() & (df.pql_score >= admin_threshold)
+    df["status"] = np.where(by_score | by_admin, "Ready", "Not yet")
+    df["ready_rule"] = np.where(by_score, "score", np.where(by_admin, "admin", None))
     return df
 
 

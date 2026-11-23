@@ -37,6 +37,8 @@
 - Dropped the AI cold-email step from scope. The project is scoring + alerts only.
 - Clay is a documented production plug-in point, not used on synthetic data (it can't enrich fake schools).
 - Windows are measured in school days, not calendar days. This is the core idea the backtest tests.
+- **2026-11-23:** Clay stays a manual, documented plug-in point and won't be wired into n8n. The enrichment flow was tested by hand on Nov 17 (it works; synthetic contacts return "No Profile Found"). Wiring it needs Clay's paid plan for API access and adds nothing to the demo.
+- **2026-11-23:** Experiments (district calendars, admin rule, threshold sweep) are separate runs with their own results files. The default world and headline numbers stay fixed, so the pitch doesn't move under the UI work.
 
 ## Known issues (found by the tutor review)
 - `healthy_break_renewal` behaves exactly like `healthy`; only its renewal dates differ, and many healthy schools share those dates. In Phase 2, group false alarms by **renewal date**, not archetype.
@@ -173,11 +175,32 @@
   - `report.py` headline tiles now read from `results/*.md` instead of hardcoded numbers, so they can't drift again.
   - Pre-commit hook false positive: it blocked the explainer page because the page *describes* the key prefix the hook looks for. Reworded the page.
 
+- **2026-11-23:** Per-district calendars (task 5.1).
+  - `config.py`: `CALENDARS` holds the national calendar plus five regional ones (Northeast starts after Labor Day with February and April vacations; Southeast and Southwest start in early August and end in May; spring breaks range from early March to mid April). `REGION_CALENDAR` maps a school to one.
+  - `simulate.py --calendars district` builds `data/kindling_districts.duckdb`: same schools and archetypes, but activity follows each school's own calendar. The default world is unchanged: every table matches the old database row for row, apart from the new `calendar_id` column (verified with `assert_frame_equal`).
+  - `features.py`: windows are now counted per school on its own calendar (`school_days`). `school_days_shared` keeps the old one-national-calendar behaviour as a baseline. In the default world, all three modes produce the same features as before (verified).
+  - Result (`results/district_calendar_backtest.md`): health false alarms are 100% naive, **83%** on school days with one national calendar, and **0%** on district calendars. The false alarms under the national calendar are spread across all five regions. PQL barely moves (78–79% precision in all three).
+  - Bug found by the district world: Northeast schools start Sep 2, so on Sep 1 the scorer measured an empty window, scored 52.5 and flagged all 12 healthy Northeast schools (21% false alarm rate before the fix). Fix: health isn't scored until a school's year has one full window of school days (`HEALTH_MIN_SCHOOL_DAYS = 10`). This is not weight tuning, and the default world is unchanged (every Monday from Sep 1 already had 11 school days).
+  - Bug I introduced and fixed in the same task: once every school is filtered out (August, before school starts), `health.score` crashed on the empty frame and `/backtest` returned 500. Both scorers now handle empty input, and there's a test for it. Side effect: the API backtest chart now shows 0 alerts in August instead of scoring schools on empty summer windows.
+  - Tests: 12 passing. Added: default world is all on the national calendar; a Northeast window skips April vacation on its own calendar but not on the national one; health isn't scored before a full window; scorers survive a summer date. The no-future-data test now also copies `school_calendars` (calendars are published before the year starts, so they stay whole).
+  - Demo use: answers "what about districts with different breaks?" with a number: one national calendar fires on 83% of healthy schools, district calendars on 0%.
+
+- **2026-11-23:** PQL run 3, a lower Ready threshold when an admin has signed up (task 5.2).
+  - `pql.score(features, admin_threshold=40)`: a school with an admin is also Ready at score ≥ 40. Off by default. `ready_rule` says which rule fired. The 40 comes from the quiet-converter profile (2 teachers + admin + one heavy-use teacher or growth ≈ 40), not from results.
+  - Default world: catches 26/28 real converters vs 24/28 for run 2, and 9/11 small converters (≤3 teachers) vs 7/11. Flags 35 vs 31 schools; precision 74% vs 77% (2 more stalled schools flagged).
+  - Caveat: in the simulator only converter-shaped schools ever get an admin, which flatters the rule. Stress test (`simulate.py --admin-noise 0.25`, a separate random stream, so every other event is identical): flags 46, precision **63%**, still 26/28 real converters.
+  - Decision: keep run 2 as the default. Real data has to show whether admin signups predict buying. A UI option is a separate "warming" list instead of "Ready".
+
+- **2026-11-23:** Threshold sweep, ready for real data (task 5.3).
+  - `backtest.py sweep [--db path]`: sweeps the PQL Ready threshold (30–90) and the health At-risk threshold (40–90). It picks on fall Mondays and grades on spring (RULES.md #3). The business rules are `TUNE_PQL_MIN_PRECISION = 0.60` and `TUNE_HEALTH_MAX_FALSE_ALARM = 0.05` (assumptions for Flint to set).
+  - Health: the fall pick is 70, the same as config, and it holds on spring (59% recall, 0% false alarms). It sits right at the edge: 75 already gives 14% spring false alarms.
+  - PQL: the fall pick is 35 (65% fall precision), which **fails the same rule on spring** (50%). 60 stays. This is why the sweep grades on held-out data.
+  - config.py is not changed by the sweep. On synthetic data it's a dry run; the README's "Running with real data" section now covers the real-data steps.
+
 ## What's left
-- Per-district school calendars (production requirement — currently one shared calendar for all schools)
-- Tune PQL/health thresholds on real data once connected to Flint's database
-- Try lower PQL threshold for schools with admin signup (may catch quiet converters — must report as separate run)
-- Clay → n8n integration requires Clay Team plan ($149/mo) for API access; currently manual CSV workflow
+- Pre-UI readiness audit (task 5.5), then the UI changes it scopes
+- 2-minute demo video (deferred until the UI changes land)
+- On real data: tune thresholds with `backtest.py sweep --db`, source real district calendars, and rerun the admin rule
 
 ## How real data would work
 Replace `simulate.py` with a live query against Flint's production DB (or read replica). `features.py`, scoring rules, API, frontend, and n8n all stay the same. Main calibration work: tune thresholds on real conversion outcomes (a few weeks of data), add per-district calendars, handle messier real-world usage patterns. The architecture is correct — it just needs real data to dial in the numbers.

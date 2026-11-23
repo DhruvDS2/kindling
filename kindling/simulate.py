@@ -1,8 +1,12 @@
 """Simulate one school year of product usage for a K-12 AI tutoring product.
 
 Writes a DuckDB file with:
-  calendar  - every day, its kind, and a running count of instructional days
-  schools   - what the GTM team can see about each account
+  calendar         - the shared national calendar: every day, its kind, and a
+                     running count of instructional days
+  school_calendars - the same, for every calendar a school in this world uses
+                     (plus the national one), keyed by calendar_id
+  schools          - what the GTM team can see about each account, including
+                     which calendar it follows
   teachers  - users, with role and join date
   events    - Segment-style usage events, aggregated per user per day
   truth     - the hidden outcome for every school (the engine never reads this)
@@ -11,11 +15,19 @@ Each school gets a hidden archetype that drives its behaviour. Decoy archetypes
 look promising (or worrying) on a naive read but are not, which is what makes
 the backtest meaningful.
 
-Run:  python -m kindling.simulate
+Run:  python -m kindling.simulate                       # default world, one national calendar
+      python -m kindling.simulate --calendars district   # each school on its district's calendar
+      python -m kindling.simulate --admin-noise 0.25     # stress test: admins at non-buying schools too
+
+The two options only add to the default world: with neither set, the random
+draws are identical and the default database is unchanged.
 """
 from __future__ import annotations
 
+import argparse
+import sys
 from datetime import date, timedelta
+from pathlib import Path
 
 import duckdb
 import numpy as np
@@ -88,17 +100,39 @@ CONTACT_TITLES = [
 ]
 
 
+ADMIN_NOISE_ARCHETYPES = ("solo_star", "builders", "dormant")
+
+
 class World:
-    def __init__(self, seed: int = C.SEED):
+    def __init__(self, seed: int = C.SEED, calendars: str = "national", admin_noise: float = 0.0):
+        """calendars: "national" puts every school on one shared calendar (the default world);
+        "district" puts each school on its district's calendar (C.REGION_CALENDAR).
+        admin_noise: share of non-buying free schools that also get an admin signup.
+        """
+        if calendars not in ("national", "district"):
+            raise ValueError("calendars must be 'national' or 'district'")
+        self.calendar_mode = calendars
+        self.admin_noise = admin_noise
+        self.noise_seed = seed + 1  # separate stream, so noise never shifts the main draws
         self.rng = np.random.default_rng(seed)
         self.days = list(C.all_days())
         self.day_index = {d: i for i, d in enumerate(self.days)}
-        kinds = [C.day_kind(d) for d in self.days]
-        self.kind_mult = np.array([KIND_MULT[k] for k in kinds])
-        self.calendar = pd.DataFrame({"day": self.days, "kind": kinds})
-        self.calendar["instr_idx"] = (self.calendar["kind"] == "instructional").cumsum()
+        cal_ids = [C.SHARED_CALENDAR]
+        if calendars == "district":
+            cal_ids += sorted(set(C.REGION_CALENDAR.values()))
+        self.calendars = {cid: self._calendar_frame(cid) for cid in cal_ids}
+        self.kind_mult_by_cal = {cid: np.array([KIND_MULT[k] for k in df["kind"]])
+                                 for cid, df in self.calendars.items()}
+        self.calendar = self.calendars[C.SHARED_CALENDAR].drop(columns="calendar_id")
+        self.school_cal: dict[str, str] = {}
         self.schools, self.teachers, self.events, self.truth = [], [], [], []
         self.names = self._unique_names()
+
+    def _calendar_frame(self, calendar_id: str) -> pd.DataFrame:
+        kinds = [C.day_kind(d, calendar_id) for d in self.days]
+        df = pd.DataFrame({"calendar_id": calendar_id, "day": self.days, "kind": kinds})
+        df["instr_idx"] = (df["kind"] == "instructional").cumsum()
+        return df
 
     # ---------- helpers ----------
     def _unique_names(self):
@@ -131,7 +165,7 @@ class World:
         alive[self.idx(joined):] = 1.0
         if stop is not None and stop <= C.END:
             alive[self.idx(stop):] = 0.0
-        p = p_active * self.kind_mult * alive
+        p = p_active * self.kind_mult_by_cal[self.school_cal[school_id]] * alive
         if intensity is not None:
             p = p * intensity
         active = self.rng.random(n) < np.clip(p, 0, 1)
@@ -169,6 +203,11 @@ class World:
             ds = DISTRICT_SUFFIXES[int(self.rng.integers(len(DISTRICT_SUFFIXES)))]
             district = f"{city} {ds}"
 
+        # No random draw here: the calendar follows from the region.
+        calendar_id = (C.REGION_CALENDAR[region] if self.calendar_mode == "district"
+                       else C.SHARED_CALENDAR)
+        self.school_cal[sid] = calendar_id
+
         first = CONTACT_FIRST[int(self.rng.integers(len(CONTACT_FIRST)))]
         last  = CONTACT_LAST[int(self.rng.integers(len(CONTACT_LAST)))]
         contact_name  = f"{first} {last}"
@@ -180,7 +219,7 @@ class World:
             "school_id": sid, "name": school_name, "type": typ,
             "students": int(self.rng.integers(150, 1600)),
             "region": region, "city": city, "state": state,
-            "district": district,
+            "district": district, "calendar_id": calendar_id,
             "contact_name": contact_name, "contact_title": contact_title,
             "contact_email": contact_email,
             "plan_at_start": plan, "seats": seats,
@@ -315,13 +354,34 @@ class World:
         self.rng.shuffle(plan)
         for arche in plan:
             makers[arche]() if arche in makers else self.paid(arche)
+        if self.admin_noise:
+            self._add_admin_noise()
         return self
+
+    def _add_admin_noise(self):
+        """Stress test: in real life admins also sign up at schools that never buy.
+
+        Runs after the main build on its own random stream, so every other event
+        is identical to the default world. Noise admins only sign up; admin usage
+        never counts toward teacher features.
+        """
+        rng = np.random.default_rng(self.noise_seed)
+        archetypes = {t["school_id"]: t["archetype"] for t in self.truth}
+        for school in self.schools:
+            sid = school["school_id"]
+            if archetypes[sid] not in ADMIN_NOISE_ARCHETYPES:
+                continue
+            if rng.random() < self.admin_noise:
+                day = school["signup_date"] + timedelta(days=int(rng.integers(7, 61)))
+                if day <= C.END:
+                    self.add_teacher(sid, day, role="admin")
 
     def frames(self):
         ev = pd.DataFrame(self.events, columns=["day", "school_id", "teacher_id", "event", "n"])
         ev = ev[(ev["day"] >= C.START) & (ev["day"] <= C.END)]
         return {
             "calendar": self.calendar,
+            "school_calendars": pd.concat(self.calendars.values(), ignore_index=True),
             "schools": pd.DataFrame(self.schools),
             "teachers": pd.DataFrame(self.teachers),
             "events": ev.sort_values(["day", "school_id"]).reset_index(drop=True),
@@ -338,17 +398,27 @@ def write(frames: dict, path=C.DB_PATH):
         con.register("df", df)
         con.execute(f"CREATE TABLE {name} AS SELECT * FROM df")
         con.unregister("df")
-    for col in ("day",):
-        con.execute(f"ALTER TABLE calendar ALTER {col} TYPE DATE")
-        con.execute(f"ALTER TABLE events ALTER {col} TYPE DATE")
+    for table in ("calendar", "school_calendars", "events"):
+        con.execute(f"ALTER TABLE {table} ALTER day TYPE DATE")
     con.close()
 
 
-def main():
-    frames = World().build().frames()
-    write(frames)
+def main(argv: list[str] | None = None):
+    ap = argparse.ArgumentParser(description="Simulate one school year of usage.")
+    ap.add_argument("--calendars", choices=["national", "district"], default="national")
+    ap.add_argument("--admin-noise", type=float, default=0.0,
+                    help="share of non-buying free schools that also get an admin signup")
+    ap.add_argument("--out", type=Path, default=None, help="DuckDB path to write")
+    args = ap.parse_args([] if argv is None else argv)  # None: defaults, never sys.argv
+    out = args.out
+    if out is None:
+        out = (C.DISTRICT_DB_PATH if args.calendars == "district"
+               else C.ADMIN_NOISE_DB_PATH if args.admin_noise else C.DB_PATH)
+
+    frames = World(calendars=args.calendars, admin_noise=args.admin_noise).build().frames()
+    write(frames, out)
     t = frames["truth"]
-    print(f"Wrote {C.DB_PATH.relative_to(C.ROOT)}")
+    print(f"Wrote {out.relative_to(C.ROOT) if out.is_relative_to(C.ROOT) else out}")
     print(f"  schools  {len(frames['schools']):>7,}")
     print(f"  teachers {len(frames['teachers']):>7,}")
     print(f"  events   {len(frames['events']):>7,}")
@@ -359,4 +429,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
