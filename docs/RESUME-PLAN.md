@@ -1,5 +1,17 @@
 # Resume plan: kindling-ui-upgrade (paused 2026-11-23)
 
+> **Update, same day (resumed):**
+> - Phase 1 is DONE and merged into `ui-upgrade` (`e4a4499`). It passed every gate. "Ready" is warm ochre: #80560F light, #E0B25C dark.
+> - The cross-lane contract `frontend/src/drawerList.tsx` was added (`23827fe`).
+> - **Phase 2 is running:** 5 lanes in `.worktrees/lane-{a-shell,b-brief-ready,c-risk-drawer,d-backtest,e-secondary}`, on branches `ui-upgrade-lane-*`, ports 8401–8405 / 5401–5405.
+> - If paused again: commit each lane worktree as "wip: paused", push the lane branches, and resume each lane from its branch. File ownership is in each lane's brief (recorded in the session); in short:
+>   - A: App/main/asOf/nav/index.css/shell
+>   - B: MondayBrief/ReadyToBuy/ScoreChip
+>   - C: AtRisk/AccountDetail/detail
+>   - D: Backtest/backtest
+>   - E: Prospects/Pipeline/Automations
+
+
 The run spec is `docs/UI-UPGRADE-RUN.md`. Decisions live in `DESIGN.md` (§2 references with Details IDs, §3 behavior specs, §4 motion tokens, §8 banned list). Option history is in `docs/design/OPTIONS.md`.
 
 ## Where we are
