@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "screenshots": "node scripts/screenshots.mjs",
     "lint:tokens": "node scripts/lint-tokens.mjs",
-    "styleguide:check": "node scripts/styleguide-check.mjs"
+    "styleguide:check": "node scripts/styleguide-check.mjs",
+    "design:capture": "node scripts/design-capture.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.107.1",
