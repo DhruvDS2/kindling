@@ -44,7 +44,7 @@ export default function App() {
     brief: 'Monday brief',
     ready: 'Ready to buy',
     risk: 'At risk',
-    backtest: 'Backtest: churn alerts',
+    backtest: 'Backtest',
     automations: 'Automations',
     pipeline: 'Pipeline funnel',
     prospects: 'Prospects',

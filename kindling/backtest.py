@@ -37,10 +37,16 @@ def _plain(v):
 
 
 def _commit() -> str | None:
+    """The commit whose code produced these results: HEAD's short hash, plus "-dirty"
+    when tracked code outside results/ has uncommitted changes (then no commit
+    holds the exact code that ran)."""
+    def git(*args) -> str:
+        return subprocess.run(["git", *args], cwd=C.ROOT, capture_output=True,
+                              text=True, timeout=5).stdout.strip()
     try:
-        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=C.ROOT,
-                             capture_output=True, text=True, timeout=5)
-        return out.stdout.strip() or None
+        head = git("rev-parse", "--short", "HEAD")
+        dirty = git("status", "--porcelain", "--untracked-files=no", "--", ".", ":(exclude)results")
+        return (head + ("-dirty" if dirty else "")) or None
     except (OSError, subprocess.SubprocessError):
         return None
 
