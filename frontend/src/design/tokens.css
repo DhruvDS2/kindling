@@ -143,24 +143,6 @@
   --stagger-cell: 12ms;        /* reading order inside a row on first load */
   --rise: 4px;                 /* the only travel distance for entrances */
   --skeleton-pulse: 1600ms;    /* loading loop period; off under reduced motion */
-
-  /* ── Deprecated aliases: the pre-upgrade names. Phase 2 migrates screens off them. */
-  --paper: var(--bg-page);
-  --nav: var(--bg-subtle);
-  --card: var(--bg-surface);
-  --ink: var(--text-primary);
-  --body: var(--text-secondary);
-  --muted: var(--text-tertiary);
-  --line: var(--border-hairline);
-  --row-divider: var(--border-faint);
-  --break-shade: var(--data-break);
-  --ember: var(--accent);
-  --ember-chip-bg: var(--accent-subtle);
-  --ember-chip-text: var(--accent-strong);
-  --risk: var(--status-risk-fg);
-  --risk-chip-bg: var(--status-risk-bg);
-  --steady: var(--status-healthy-fg);
-  --naive: var(--data-naive);
 }
 
 /* Dark: an explicit choice, or the OS preference when no explicit light choice was made.
@@ -195,8 +177,8 @@
   --status-neutral-fg: #A9A398;
   --status-neutral-bg: #25231F;
   --data-naive: #7A746B;
-  --data-break: #26231F;
-  --data-summer: #1E1C19;
+  --data-break: #36322B;
+  --data-summer: #2A2722;
   --scrim: rgba(0, 0, 0, 0.42);
   --elevation-popover: 0 0 0 1px #34302B, 0 8px 24px rgba(0, 0, 0, 0.45);
 }
@@ -232,8 +214,8 @@
     --status-neutral-fg: #A9A398;
     --status-neutral-bg: #25231F;
     --data-naive: #7A746B;
-    --data-break: #26231F;
-    --data-summer: #1E1C19;
+    --data-break: #36322B;
+    --data-summer: #2A2722;
     --scrim: rgba(0, 0, 0, 0.42);
     --elevation-popover: 0 0 0 1px #34302B, 0 8px 24px rgba(0, 0, 0, 0.45);
   }

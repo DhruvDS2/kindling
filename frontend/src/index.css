@@ -29,13 +29,3 @@ body {
   display: flex;
   text-align: left;
 }
-
-/* Deprecated: the pre-upgrade `.skeleton` bar (components/Skeleton.tsx). Screens move to the base
-   <Skeleton>; this stays, on tokens, until the last legacy use is gone. */
-.skeleton {
-  background-color: var(--bg-skeleton);
-  border-radius: var(--radius-2);
-  animation: kshell-legacy-pulse var(--skeleton-pulse) ease-in-out infinite;
-}
-@keyframes kshell-legacy-pulse { 50% { opacity: 0.55; } }
-@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }

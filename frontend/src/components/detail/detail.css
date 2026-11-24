@@ -1,10 +1,6 @@
 /* The school detail drawer's content (lane C). Tokens only: npm run lint:tokens. */
 
 .kd-body { --kd-break: var(--data-break); display: flex; flex-direction: column; min-width: 0; }
-/* Dark: --data-break is darker than nothing on --bg-surface (1.1:1), so breaks use the hairline
-   step instead. Same two selectors as tokens.css uses for the dark theme. */
-:root[data-theme="dark"] .kd-body { --kd-break: var(--border-hairline); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .kd-body { --kd-break: var(--border-hairline); } }
 /* The header already ends on a hairline; the first section doesn't draw a second one. */
 .kd-body > .k-drawer__section:first-child > .k-drawer__rule { display: none; }
 
