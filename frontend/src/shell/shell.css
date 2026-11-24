@@ -1,0 +1,98 @@
+/* Lane A shell: layout glue around the base AppShell, Nav, TopBar and DateControl. Tokens only. */
+
+/* The nav wrapper only listens for hover/focus (chunk preloading); it adds no box, so the base
+   sidebar stays sticky against the full-height aside. */
+.kshell-nav { display: contents; }
+
+/* Brand: a small ink monogram. Ember stays reserved for "act on this" marks (DESIGN.md §5). */
+.kshell-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--size-icon);
+  height: var(--size-icon);
+  border-radius: var(--radius-2);
+  background: var(--text-primary);
+  color: var(--bg-page);
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  font-weight: var(--weight-medium);
+}
+
+/* Sidebar footer: when n8n last sent alerts, then the theme switch. */
+.kshell-nav .k-nav__footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-top: var(--space-1-5);
+}
+.kshell-alerts { margin: 0; color: var(--text-tertiary); }
+.kshell-theme .k-seg { display: flex; width: 100%; }
+.kshell-theme .k-seg__opt {
+  flex: 1;
+  justify-content: center;
+  height: var(--size-pill);
+  padding: 0 var(--space-0-5);
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+}
+
+/* 6A: the base fades only the content region (k-page) and leaves the root snapshot still, but the
+   UA still runs a 250ms (no-op) size/position animation on the root group, which keeps the whole
+   transition (and the inert page) alive past 180ms. The root never changes geometry: end it at once. */
+::view-transition-group(root) { animation-duration: 0s; }
+
+/* Top bar: same measure as the content below it, so right edges line up. */
+.kshell-topbar { max-width: var(--size-content); }
+/* The ruler pads itself for its focus ring; pull it out by that padding so the first and last
+   Mondays sit on the content's left and right edges. */
+.kshell-topbar .k-ruler { margin: 0 calc(var(--space-1) * -1); }
+.kshell-date {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  min-height: var(--leading-display);
+}
+
+/* Suspense fallback for a screen's chunk: shaped like the screen. */
+.kshell-skel { display: flex; flex-direction: column; gap: var(--space-3); padding-top: var(--space-1); }
+.kshell-skel__toolbar { display: flex; align-items: center; gap: var(--space-1-5); }
+.kshell-skel__stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: var(--size-hairline) solid var(--border-hairline);
+  border-bottom: var(--size-hairline) solid var(--border-hairline);
+}
+.kshell-skel__stat { display: flex; flex-direction: column; gap: var(--space-1); }
+.kshell-skel__row {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr) minmax(0, 3fr) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+  min-height: var(--size-row);
+  padding: var(--space-1) 0;
+  border-bottom: var(--size-hairline) solid var(--border-faint);
+}
+.kshell-skel__row--head { min-height: var(--size-control); border-bottom-color: var(--border-hairline); }
+.kshell-skel__cell { display: flex; flex-direction: column; gap: var(--space-0-5); min-width: 0; }
+
+/* Before /meta answers (and while the shell chunk loads): the shell's shape, no "Loading…" line.
+   Mirrors the base AppShell grid without importing it (it carries motion). */
+.kshell-boot { display: grid; grid-template-columns: var(--size-sidebar) minmax(0, 1fr); width: 100%; min-height: 100vh; }
+.kshell-boot__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+  padding: var(--space-2) var(--space-1-5);
+  background: var(--bg-subtle);
+  border-right: var(--size-hairline) solid var(--border-faint);
+}
+.kshell-boot__main { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; max-width: calc(var(--size-content) + var(--space-5) * 2); padding: 0 var(--space-5); }
+.kshell-boot__top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding-top: var(--space-4); }
+.kshell-boot__body { display: flex; flex-direction: column; gap: var(--space-1-5); }
+
+/* API down: what failed, plus retry, at the page's left edge. */
+.kshell-down { width: 100%; padding: var(--space-6) var(--space-5); }

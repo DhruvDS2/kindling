@@ -26,3 +26,25 @@ export function parseDay(day: string): Date {
 export function fmtDay(day: string, opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' }) {
   return parseDay(day).toLocaleDateString('en-US', opts);
 }
+
+/** True for a known screen id (e.g. a data-nav value). */
+export function isScreen(s: string | null | undefined): s is Screen {
+  return !!s && (SCREENS as string[]).includes(s);
+}
+
+/** The page title in the top bar, shown at display size. */
+export const PAGE_TITLES: Record<Screen, string> = {
+  brief: 'Monday brief',
+  ready: 'Ready to buy',
+  risk: 'At risk',
+  pipeline: 'Pipeline',
+  prospects: 'Prospects',
+  backtest: 'Backtest',
+  automations: 'Automations',
+};
+
+/**
+ * Screens whose numbers are scored for the as-of week. They get the week pager and ruler;
+ * Backtest (the whole replayed year) and Automations (real n8n run dates) don't depend on it.
+ */
+export const DATED_SCREENS: readonly Screen[] = ['brief', 'ready', 'risk', 'pipeline', 'prospects'];

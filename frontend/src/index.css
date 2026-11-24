@@ -19,6 +19,7 @@ body {
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--text-md);
+  line-height: var(--leading-md);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -29,13 +30,12 @@ body {
   text-align: left;
 }
 
-@keyframes skeletonPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
+/* Deprecated: the pre-upgrade `.skeleton` bar (components/Skeleton.tsx). Screens move to the base
+   <Skeleton>; this stays, on tokens, until the last legacy use is gone. */
 .skeleton {
-  background-color: var(--line);
-  border-radius: 4px;
-  animation: skeletonPulse 1.5s ease-in-out infinite;
+  background-color: var(--bg-skeleton);
+  border-radius: var(--radius-2);
+  animation: kshell-legacy-pulse var(--skeleton-pulse) ease-in-out infinite;
 }
+@keyframes kshell-legacy-pulse { 50% { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }

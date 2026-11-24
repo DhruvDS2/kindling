@@ -4,8 +4,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import './design/tokens.css';
 import './design/base.css';
 import './index.css';
+import './shell/shell.css';
 import App from './App.tsx';
 import { AsOfProvider } from './asOf.tsx';
+import { applyThemePref, readThemePref } from './shell/theme';
+
+// Apply the saved theme (System / Light / Dark) before the first render, so the app never paints
+// in the other theme first.
+applyThemePref(readThemePref());
 
 const queryClient = new QueryClient({
   defaultOptions: {
