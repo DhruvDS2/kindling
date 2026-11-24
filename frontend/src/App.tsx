@@ -1,4 +1,4 @@
-import { Suspense, startTransition, useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { Suspense, startTransition, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AppShell, PageView, ToastProvider, usePageTransition } from './design';
 import { type Screen, readUrl, writeUrl } from './nav';
 import { ShellNav } from './shell/ShellNav';
@@ -12,6 +12,19 @@ export default function App() {
   const [retries, setRetries] = useState(0);
   const go = usePageTransition();
   const navSeq = useRef(0);
+
+  // Perf (Phase 3): fetch and evaluate the Backtest chunk (recharts, ~400 kB) once the app is idle
+  // after boot, not on the click that opens it: parsing it then used to land inside the page switch.
+  useEffect(() => {
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    const warm = () => { void preloadScreen('backtest').catch(() => undefined); };
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(warm, { timeout: 5000 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const t = window.setTimeout(warm, 2000);
+    return () => window.clearTimeout(t);
+  }, []);
 
   function navigate(s: Screen, schoolId?: string) {
     const apply = () => {
