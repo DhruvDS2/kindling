@@ -28,9 +28,9 @@ Schools go quiet every Thanksgiving, winter break, and spring break. A naive chu
 | | Naive model | Kindling |
 |---|---|---|
 | **PQL precision** (ready schools that actually buy) | 37% | **77%** |
-| **Health false alarm rate** (healthy schools flagged as at-risk) | **100%** | **0%** |
+| **Health false alarm rate** (healthy schools flagged as at-risk) | **98%** | **0%** |
 
-Districts don't share breaks either. In a second simulated world where every school follows its own district's calendar (New England's February and April vacations, Texas's early-March spring break, Southern schools ending in May), counting school days on one national calendar still fires on **83%** of healthy schools. Counting them on each district's calendar: **0%**. Details in `results/district_calendar_backtest.md`.
+Districts don't share breaks either. In a second simulated world where every school follows its own district's calendar (New England's February and April vacations, Texas's early-March spring break, Southern schools ending in May), counting school days on one national calendar still fires on **19%** of healthy schools (11 of 58). Counting them on each district's calendar: **0%**. Details in `results/district_calendar_backtest.md`.
 
 ### Experiments (separate runs, never mixed into the headline numbers)
 
@@ -38,7 +38,7 @@ Run all three with `make experiments`.
 
 | Run | Result | File |
 |---|---|---|
-| District calendars | Health false alarms: 100% naive → 83% national calendar → **0%** district calendars. PQL unchanged (78–79% precision either way). | `results/district_calendar_backtest.md` |
+| District calendars | Health false alarms: 98% naive → 19% national calendar → **0%** district calendars. PQL unchanged (78–79% precision either way). | `results/district_calendar_backtest.md` |
 | PQL run 3: lower threshold (40) when an admin has signed up | Catches 2 of the 4 real converters run 2 misses (26/28 vs 24/28); precision 77% → 74%. If admins also sign up at non-buying schools (stress test), precision falls to 63%. **Off by default.** | `results/pql_admin_threshold.md` |
 | Threshold sweep, tuned on fall, graded on spring | Health: fall pick is 70, same as config, and it holds on spring. PQL: fall pick is 35, which fails the same precision rule on spring, so 60 stays. A dry run; ready for real data. | `results/threshold_sweep.md` |
 
@@ -209,7 +209,7 @@ Everything else — the scoring engine, API, frontend, and automations — stays
 - **The health threshold has a thin margin.** "At risk" means a health score below 70.
   - **History:** it started at 50 and was raised to 70 on Nov 17, 2026, for a UI reason: at 50, no school ever showed as at risk on the dashboard. It was not tuned on results. The backtest wasn't rerun until Nov 23, when recall turned out to have risen from 41% to 77% with false alarms still at 0%.
   - **Check:** the threshold sweep picks a threshold on fall data and checks it on spring. It independently picks 70, and 70 holds on spring (`results/threshold_sweep.md`).
-  - **Margin:** the lowest score any healthy school reaches before its renewal is 72, just two points above the line. At 75, spring false alarms jump to 14%. Small weight changes could break the 0% false-alarm result, so re-check it on real data before trusting it.
+  - **Margin:** the lowest score any healthy school reaches before its renewal is 72, just two points above the line. At 75, spring false alarms already start (3%), and at 80 they reach 17%. Small weight changes could break the 0% false-alarm result, so re-check it on real data before trusting it.
 - **Admin signups are clean in the simulator.** Only converter-shaped schools get admins by default, which flatters any admin rule. The admin rule stays off until real data says otherwise.
 - **localtunnel URLs change on restart.** When you reboot, update the 4 HTTP Request nodes across the two API-calling workflows in n8n.
 - **Stalled schools are unbeatable.** Schools that look like buyers but never buy (budget freeze) are indistinguishable from real buyers. This is the honest precision ceiling — not a bug.

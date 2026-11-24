@@ -33,7 +33,7 @@
     },
     {
       "parameters": {
-        "url": "=YOUR_LOCALTUNNEL_URL/snapshot/pql?as_of={{ $json.as_of }}",
+        "url": "=YOUR_LOCALTUNNEL_URL/snapshot/pql",
         "method": "POST",
         "sendHeaders": true,
         "headerParameters": {
@@ -51,7 +51,7 @@
     },
     {
       "parameters": {
-        "url": "=YOUR_LOCALTUNNEL_URL/pql?as_of={{ $json.as_of }}",
+        "url": "=YOUR_LOCALTUNNEL_URL/pql",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -68,7 +68,7 @@
     },
     {
       "parameters": {
-        "url": "=https://YOUR_LOCALTUNNEL_URL/slack/health?as_of={{ $json.as_of }}",
+        "url": "=YOUR_LOCALTUNNEL_URL/slack/health",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -123,7 +123,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const scores = $input.item.json.scores;\nconst ready = scores.filter(s => s.status === 'Ready').slice(0, 3);\nconst top = ready[0];\nconst as_of = $('Build as_of date').item.json.as_of;\nreturn [{ json: { top_school: top, all_ready: ready, as_of } }];"
+        "jsCode": "const scores = $input.item.json.scores;\nconst ready = scores.filter(s => s.status === 'Ready').slice(0, 3);\nconst top = ready[0];\nconst as_of = $input.item.json.as_of; // the API's demo date, not today\nreturn [{ json: { top_school: top, all_ready: ready, as_of } }];"
       },
       "id": "extract_top_school",
       "name": "Extract top school",
@@ -199,7 +199,7 @@
     },
     {
       "parameters": {
-        "url": "https://YOUR_LOCALTUNNEL_URL/log-run",
+        "url": "YOUR_LOCALTUNNEL_URL/log-run",
         "method": "POST",
         "sendHeaders": true,
         "headerParameters": {

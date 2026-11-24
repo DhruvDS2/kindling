@@ -1,0 +1,102 @@
+{
+  "id": "pql_backtest",
+  "title": "PQL backtest",
+  "source": "results/pql_backtest.md",
+  "note": "Replayed every Monday from 2025-09-01 to 2026-07-31. A school is flagged the first Monday its score reaches 60. A flag counts as a hit only if the school converts *after* the flag.",
+  "generated_at": "2026-11-24T00:40:56+00:00",
+  "commit": "1235173",
+  "replay": {
+    "start": "2025-09-01",
+    "end": "2026-07-27"
+  },
+  "tables": [
+    {
+      "title": null,
+      "note": null,
+      "index_name": null,
+      "columns": [
+        "Naive: 5+ tutors built",
+        "Kindling PQL score"
+      ],
+      "rows": [
+        {
+          "label": "schools flagged",
+          "values": [
+            93,
+            31
+          ],
+          "display": [
+            "93",
+            "31"
+          ]
+        },
+        {
+          "label": "flagged that converted",
+          "values": [
+            34,
+            24
+          ],
+          "display": [
+            "34",
+            "24"
+          ]
+        },
+        {
+          "label": "precision",
+          "values": [
+            0.3655913978494624,
+            0.7741935483870968
+          ],
+          "display": [
+            "37%",
+            "77%"
+          ]
+        },
+        {
+          "label": "converters caught before converting",
+          "values": [
+            "34 / 34",
+            "24 / 34"
+          ],
+          "display": [
+            "34 / 34",
+            "24 / 34"
+          ]
+        },
+        {
+          "label": "recall",
+          "values": [
+            1.0,
+            0.7058823529411765
+          ],
+          "display": [
+            "100%",
+            "71%"
+          ]
+        },
+        {
+          "label": "median lead time (days)",
+          "values": [
+            56.0,
+            28.5
+          ],
+          "display": [
+            "56",
+            "28"
+          ]
+        },
+        {
+          "label": "top 20 on 2026-02-02 that later converted",
+          "values": [
+            "4 / 20",
+            "8 / 20"
+          ],
+          "display": [
+            "4 / 20",
+            "8 / 20"
+          ]
+        }
+      ]
+    }
+  ]
+}

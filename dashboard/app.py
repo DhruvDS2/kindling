@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-import requests
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -158,20 +157,11 @@ def health_card(r) -> str:
     </div>"""
 
 
-# ── Slack helper ───────────────────────────────────────────────────────────────
-def send_slack(text: str, webhook_url: str) -> bool:
-    try:
-        r = requests.post(webhook_url, json={"text": text}, timeout=5)
-        return r.status_code == 200
-    except Exception:
-        return False
-
-
 # ── sidebar ─────────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("## 🔥 Kindling")
     st.markdown("---")
-    as_of = st.date_input("Score as of", value=date(2026, 2, 2),
+    as_of = st.date_input("Score as of", value=C.DEMO_AS_OF,
                            min_value=C.START, max_value=C.END)
     st.caption("All features use only data up to this date.")
     st.markdown("---")
@@ -205,8 +195,7 @@ def load_scores(as_of_str: str):
 pql_df, health_df = load_scores(str(as_of_date))
 
 ready    = pql_df[pql_df.status == "Ready"]
-at_risk  = health_df[(health_df.status == "At risk") &
-                     (health_df.days_to_renewal >= health.RENEWAL_BUFFER_DAYS)]
+at_risk  = health_df[health_df.status == "At risk"]  # the one definition: health.score decides
 arr_at_risk   = at_risk.arr.sum()
 total_arr     = health_df.arr.sum()
 nrr_projected = (total_arr - arr_at_risk) / total_arr if total_arr else 1.0
@@ -215,9 +204,9 @@ nrr_projected = (total_arr - arr_at_risk) / total_arr if total_arr else 1.0
 # ── stat tiles ──────────────────────────────────────────────────────────────────
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("🟠 Ready to buy",   len(ready),
-          help="Free schools with PQL ≥ 60")
+          help=f"Free schools with PQL ≥ {pql.READY_THRESHOLD}")
 c2.metric("🔴 At risk",        len(at_risk),
-          help=f"Paying schools · health < 50 · ≥{health.RENEWAL_BUFFER_DAYS}d to renewal")
+          help=f"Paying schools · health < {health.RISK_THRESHOLD} · renewal still ahead")
 c3.metric("💸 ARR at risk",    f"${arr_at_risk:,.0f}",
           help="Sum of ARR for at-risk schools")
 c4.metric("📈 Projected NRR",  f"{nrr_projected:.0%}",
@@ -301,15 +290,16 @@ with tab_health:
 
     with right:
         st.markdown("#### Health distribution")
-        bins_h = pd.cut(health_df.health_score, bins=[0,25,50,75,100],
-                        labels=["0–25","26–50","51–75","76–100"])
+        t = health.RISK_THRESHOLD
+        bins_h = pd.cut(health_df.health_score, bins=[-1, 25, 50, t - 1, 100], right=True,
+                        labels=["0–25", "26–50", f"51–{t - 1}", f"{t}–100"])
         counts_h = bins_h.value_counts().sort_index()
-        colors_h = [RISK, RISK, NAIVE_COL, STEADY]
+        colors_h = [RISK, RISK, RISK, STEADY]
         fig_h = go.Figure()
         fig_h.add_trace(go.Bar(x=counts_h.index.astype(str), y=counts_h.values,
                                 marker_color=colors_h, showlegend=False))
-        fig_h.add_vline(x=1.5, line_dash="dash", line_color=RISK,
-                        annotation_text="threshold (50)",
+        fig_h.add_vline(x=2.5, line_dash="dash", line_color=RISK,
+                        annotation_text=f"threshold ({t})",
                         annotation_font_color=RISK, annotation_font_size=10)
         fig_h.update_layout(paper_bgcolor="white", plot_bgcolor="white",
                              font={"color": INK, "size": 11},
@@ -423,29 +413,16 @@ with tab_backtest:
 
 
 # ── Outreach tab ─────────────────────────────────────────────────────────────────
+# This dashboard is a read-only backup. Slack alerts go through the React console,
+# which calls POST /notify/slack, which hands off to n8n. One path, one place for secrets.
 with tab_outreach:
-    sales_webhook = os.environ.get("SLACK_WEBHOOK_SALES", "")
-    cs_webhook    = os.environ.get("SLACK_WEBHOOK_CS", "")
-
-    # top bar
-    top_left, top_right, top_spacer = st.columns([1, 1, 4])
-    top_left.link_button("📧 Open Gmail", "https://mail.google.com", use_container_width=True)
-    top_right.link_button("💬 Open Slack", "https://slack.com/app_redirect", use_container_width=True)
-
-    if not sales_webhook and not cs_webhook:
-        st.warning(
-            "Slack webhooks not configured. Add `SLACK_WEBHOOK_SALES` and/or "
-            "`SLACK_WEBHOOK_CS` to your `.env` file to enable one-click notifications.",
-            icon="⚠️",
-        )
-
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.info("Read-only backup dashboard. To alert Slack, use the React console "
+            "(Send to #sales / #customer-success), which routes through n8n.", icon="ℹ️")
     left, right = st.columns(2)
 
     with left:
-        st.markdown(f"#### 🟠 Ready to buy &nbsp;·&nbsp; {len(ready)} schools",
+        st.markdown(f"#### 🟢 Ready to buy &nbsp;·&nbsp; {len(ready)} schools",
                     unsafe_allow_html=True)
-        st.caption("Notify your sales channel when you're ready to reach out.")
         if ready.empty:
             st.info("No PQL schools on this date.")
         for _, r in ready.iterrows():
@@ -455,30 +432,9 @@ with tab_outreach:
                 st.markdown(f"**{r['name']}**")
                 st.caption(meta_line + (f" · {contact}" if contact else ""))
 
-                notif_key = f"sent_pql_{r['name']}"
-                if st.session_state.get(notif_key):
-                    st.success("Sent to Slack")
-                else:
-                    if st.button("Notify Slack", key=f"btn_pql_{r['name']}",
-                                 disabled=not bool(sales_webhook)):
-                        msg = (
-                            f"🔥 *Ready to buy:* {r['name']}\n"
-                            f"• Score: {int(r.pql_score)} · "
-                            f"{int(r.active_teachers)} active teachers · "
-                            f"{int(r.student_sessions)} student sessions"
-                        )
-                        if contact:
-                            msg += f"\n• Contact: {contact}"
-                        if send_slack(msg, sales_webhook):
-                            st.session_state[notif_key] = True
-                            st.rerun()
-                        else:
-                            st.error("Failed — check your SLACK_WEBHOOK_SALES URL.")
-
     with right:
         st.markdown(f"#### 🔴 At risk &nbsp;·&nbsp; {len(at_risk)} schools",
                     unsafe_allow_html=True)
-        st.caption("Notify your CS channel for renewal risk follow-ups.")
         if at_risk.empty:
             st.info("No at-risk schools on this date.")
         for _, r in at_risk.iterrows():
@@ -487,24 +443,3 @@ with tab_outreach:
                 contact   = _contact_meta(r)
                 st.markdown(f"**{r['name']}**")
                 st.caption(meta_line + (f" · {contact}" if contact else ""))
-
-                notif_key = f"sent_health_{r['name']}"
-                if st.session_state.get(notif_key):
-                    st.success("Sent to Slack")
-                else:
-                    if st.button("Notify Slack", key=f"btn_health_{r['name']}",
-                                 disabled=not bool(cs_webhook)):
-                        msg = (
-                            f"⚠️ *At risk:* {r['name']}\n"
-                            f"• Health: {int(r.health_score)} · "
-                            f"Renews in {int(r.days_to_renewal)}d · "
-                            f"${int(r.arr):,} ARR · "
-                            f"{int(r.active_teachers)}/{int(r.seats)} seats active"
-                        )
-                        if contact:
-                            msg += f"\n• Contact: {contact}"
-                        if send_slack(msg, cs_webhook):
-                            st.session_state[notif_key] = True
-                            st.rerun()
-                        else:
-                            st.error("Failed — check your SLACK_WEBHOOK_CS URL.")

@@ -116,7 +116,7 @@
   <p>The naive approach: set a usage threshold (e.g. "5+ teachers built something this week") and fire whenever a school crosses it. <strong>The naive approach explodes every December.</strong></p>
   <div class="callout warn">
     <div class="h">The school calendar problem nobody talks about</div>
-    Schools stop using everything over winter break — Thanksgiving, December, spring break. A naive model sees usage drop to zero and fires a churn alarm on every single paying school, every single year. When 100% of your alerts are false alarms, your CS team stops acting on them.
+    Schools stop using everything over winter break — Thanksgiving, December, spring break. A naive model sees usage drop to zero and fires a churn alarm on nearly every paying school, every single year. When 100% of your alerts are false alarms, your CS team stops acting on them.
   </div>
   <p>Kindling's answer: measure activity in <strong>school days</strong>, not calendar days.</p>
 
@@ -231,7 +231,7 @@
   <h3>Health backtest — the proof the core idea works</h3>
   <div class="grid">
     <div class="stat"><div class="big ok">0%</div><div class="lbl">Kindling false alarm rate (school-day windows) — healthy schools never flagged at risk</div></div>
-    <div class="stat"><div class="big warn">100%</div><div class="lbl">Naive false alarm rate (calendar windows) — every healthy school flagged at-risk over winter break</div></div>
+    <div class="stat"><div class="big warn">98%</div><div class="lbl">Naive false alarm rate (calendar windows) — 57 of 58 healthy schools flagged at risk, mostly over winter break</div></div>
   </div>
   <div class="callout ok">
     <div class="h">The school-day windows proof</div>

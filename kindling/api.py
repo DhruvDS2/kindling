@@ -2,23 +2,31 @@
 
 Run:  uvicorn kindling.api:app --reload
 
+Dates: every as_of must fall inside the simulated year (C.START..C.END), or the
+API answers 400. Leave as_of out to get the pinned demo date (C.DEMO_AS_OF).
+
 Endpoints
 ---------
-GET  /pql?as_of=YYYY-MM-DD      → ranked PQL scores for free schools
-GET  /health?as_of=YYYY-MM-DD   → health scores for paying schools
-GET  /slack/pql?as_of=...       → Slack-formatted blocks for top Ready schools
-GET  /slack/health?as_of=...    → Slack-formatted blocks for At risk schools
-GET  /stats?as_of=YYYY-MM-DD    → aggregate KPIs
-GET  /backtest                  → season-aware vs naive comparison (~10s)
-POST /notify/slack              → send a school alert to Slack
-POST /log-run                   → append an automation run record
-GET  /automations/log           → read run log
+GET  /meta                         → demo date, simulated year, replay range, thresholds
+GET  /pql?as_of=YYYY-MM-DD         → ranked PQL scores for free schools
+GET  /health?as_of=YYYY-MM-DD      → health scores for paying schools whose renewal is still ahead
+GET  /stats?as_of=YYYY-MM-DD       → KPI tiles (the one "At risk" definition lives in health.score)
+GET  /schools/{id}?as_of=...       → one school: profile, lifecycle, score, both window definitions
+GET  /schools/{id}/history?as_of=..&mode=school_days|calendar → weekly scores up to as_of
+GET  /schools/{id}/usage?as_of=... → daily usage up to as_of, with each day's kind on its calendar
+GET  /calendars/{calendar_id}      → a school calendar: first/last day and breaks
+GET  /backtest                     → weekly at-risk counts, naive vs Kindling (no outcomes needed)
+GET  /backtest/results             → backtest metrics, served from results/*.json written by backtest.py
+GET  /slack/pql?as_of=...          → Slack-formatted blocks for top Ready schools
+GET  /slack/health?as_of=...       → Slack-formatted blocks for At risk schools
+POST /notify/slack                 → send a school alert to Slack
+POST /log-run                      → append an automation run record
+GET  /automations/log              → read run log
 """
 from __future__ import annotations
 
 import json
 import os
-import statistics
 import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta
@@ -44,12 +52,15 @@ app = FastAPI(title="Kindling", version="0.1")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",  # any local dev server
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 TOP_N_SLACK = 3
+# The order the backtest view shows the results files in.
+RESULT_RUNS = ["pql_backtest", "health_backtest", "district_calendar_backtest", "pql_admin_threshold",
+               "threshold_sweep", "pql_lr_comparison", "health_lr_comparison"]
 _RUN_LOG = C.ROOT / "data" / "run_log.json"
 _OUTREACH_LOG = C.ROOT / "data" / "outreach_log.json"
 
@@ -57,66 +68,101 @@ _OUTREACH_LOG = C.ROOT / "data" / "outreach_log.json"
 # ---------- helpers ----------
 
 def _parse_date(as_of: Optional[str]) -> date:
-    if as_of is None:
-        return date.today()
+    """No date → the pinned demo date. A date outside the simulated year → 400."""
+    if not as_of:
+        return C.DEMO_AS_OF
     try:
-        return datetime.strptime(as_of, "%Y-%m-%d").date()
+        d = datetime.strptime(as_of, "%Y-%m-%d").date()
     except ValueError:
         raise HTTPException(400, f"as_of must be YYYY-MM-DD, got '{as_of}'")
+    if not (C.START <= d <= C.END):
+        raise HTTPException(400, f"as_of {d} is outside the simulated year ({C.START} to {C.END}). "
+                                 f"Leave it out to use the demo date, {C.DEMO_AS_OF}.")
+    return d
+
+
+def _iso(v) -> Optional[str]:
+    if v is None or (not isinstance(v, str) and pd.isna(v)):
+        return None
+    return str(v)[:10]
+
+
+def _window(r, as_of: date) -> dict:
+    """The current window ends at as_of; the prior one ends the day before the current starts."""
+    start = pd.Timestamp(r.window_start).date()
+    return {"start": start.isoformat(), "end": as_of.isoformat(),
+            "prev_start": _iso(r.window_prev_start), "prev_end": (start - timedelta(days=1)).isoformat()}
+
+
+def _profile(r) -> dict:
+    district = r.get("district")
+    return {
+        "school_id": r.school_id,
+        "name": r["name"],
+        "type": r.type,
+        "calendar_id": r.calendar_id,
+        "seats": int(r.seats),
+        "city": r.get("city", ""),
+        "state": r.get("state", ""),
+        "district": district if district is not None and pd.notna(district) else None,
+        "contact_name": r.get("contact_name", ""),
+        "contact_title": r.get("contact_title", ""),
+        "contact_email": r.get("contact_email", ""),
+    }
+
+
+def _pql_row(r, as_of: date) -> dict:
+    return {
+        **_profile(r),
+        "pql_score": int(r.pql_score),
+        "status": r.status,
+        "ready_rule": r.ready_rule if isinstance(r.ready_rule, str) else None,
+        "reasons": r.reasons,
+        "reason_details": r.reason_details,
+        "active_teachers": int(r.active_teachers),
+        "active_teachers_prev": int(r.active_teachers_prev),
+        "aha_teachers": int(r.aha_teachers),
+        "student_sessions": int(r.student_sessions),
+        "student_sessions_prev": int(r.student_sessions_prev),
+        "tutors_created": int(r.tutors_created),
+        "admin_signed_up": _iso(r.admin_signed_up_on) is not None,
+        "admin_signed_up_on": _iso(r.admin_signed_up_on),
+        "window": _window(r, as_of),
+    }
+
+
+def _health_row(r, as_of: date) -> dict:
+    return {
+        **_profile(r),
+        "health_score": int(r.health_score),
+        "status": r.status,
+        "reasons": r.reasons,
+        "reason_details": r.reason_details,
+        "renewal_date": _iso(r.renewal_date),
+        "days_to_renewal": int(r.days_to_renewal),
+        "arr": int(r.arr),
+        "active_teachers": int(r.active_teachers),
+        "active_teachers_prev": int(r.active_teachers_prev),
+        "student_sessions": int(r.student_sessions),
+        "student_sessions_prev": int(r.student_sessions_prev),
+        "window": _window(r, as_of),
+    }
 
 
 def _scored_pql(as_of: date) -> list[dict]:
     con = connect()
     feats = account_features(con, [as_of], mode="school_days")
     scored = pql.score(feats).sort_values("pql_score", ascending=False)
-    rows = []
-    for _, r in scored.iterrows():
-        district = r.get("district")
-        rows.append({
-            "school_id": r.school_id,
-            "name": r["name"],
-            "pql_score": int(r.pql_score),
-            "status": r.status,
-            "reasons": r.reasons,
-            "active_teachers": int(r.active_teachers),
-            "student_sessions": int(r.student_sessions),
-            "admin_signed_up": r.admin_signed_up_on is not None and str(r.admin_signed_up_on) != "NaT",
-            "city": r.get("city", ""),
-            "state": r.get("state", ""),
-            "district": district if district is not None and pd.notna(district) else None,
-            "contact_name": r.get("contact_name", ""),
-            "contact_title": r.get("contact_title", ""),
-            "contact_email": r.get("contact_email", ""),
-        })
-    return rows
+    return [_pql_row(r, as_of) for _, r in scored.iterrows()]
 
 
 def _scored_health(as_of: date) -> list[dict]:
+    """Paying schools whose renewal is still ahead. status == "At risk" is the one
+    at-risk definition every screen, tile and Slack alert uses."""
     con = connect()
     feats = account_features(con, [as_of], mode="school_days")
     scored = health.score(feats).sort_values("health_score")
-    rows = []
-    for _, r in scored.iterrows():
-        days = int(r.days_to_renewal)
-        district = r.get("district")
-        rows.append({
-            "school_id": r.school_id,
-            "name": r["name"],
-            "health_score": int(r.health_score),
-            "status": r.status,
-            "reasons": r.reasons,
-            "days_to_renewal": days,
-            "arr": int(r.arr),
-            "active_teachers": int(r.active_teachers),
-            "seats": int(r.seats),
-            "city": r.get("city", ""),
-            "state": r.get("state", ""),
-            "district": district if district is not None and pd.notna(district) else None,
-            "contact_name": r.get("contact_name", ""),
-            "contact_title": r.get("contact_title", ""),
-            "contact_email": r.get("contact_email", ""),
-        })
-    return rows
+    return [_health_row(r, as_of) for _, r in scored.iterrows()]
 
 
 # ---------- score endpoints ----------
@@ -142,120 +188,263 @@ def get_stats(as_of: Optional[str] = Query(None)):
     health_rows = _scored_health(d)
 
     ready_to_buy = sum(1 for r in pql_rows if r["status"] == "Ready")
-
-    at_risk_schools = [
-        r for r in health_rows
-        if r["status"] == "At risk" and r["days_to_renewal"] >= health.RENEWAL_BUFFER_DAYS
-    ]
-    at_risk = len(at_risk_schools)
+    at_risk_schools = [r for r in health_rows if r["status"] == "At risk"]
     arr_at_risk = sum(r["arr"] for r in at_risk_schools)
-    total_arr = sum(r["arr"] for r in health_rows)
-    projected_nrr = (total_arr - arr_at_risk) / total_arr if total_arr > 0 else 1.0
+
+    con = connect()
+    total_arr = int(con.execute(
+        "SELECT coalesce(sum(arr), 0) FROM schools WHERE plan_at_start = 'paid'").fetchone()[0])
+    # churn already booked by as_of: a CRM fact (a plan_churned event), not a prediction
+    arr_churned = int(con.execute("""
+        SELECT coalesce(sum(s.arr), 0) FROM schools s
+        WHERE s.school_id IN (SELECT school_id FROM events WHERE event = 'plan_churned' AND day <= ?)
+    """, [d]).fetchone()[0])
+    projected_nrr = (total_arr - arr_churned - arr_at_risk) / total_arr if total_arr else 1.0
 
     return JSONResponse({
         "as_of": str(d),
         "ready_to_buy": ready_to_buy,
-        "at_risk": at_risk,
+        "at_risk": len(at_risk_schools),
         "arr_at_risk": arr_at_risk,
-        "arr_at_risk_school_count": at_risk,
+        "arr_at_risk_school_count": len(at_risk_schools),
+        "paid_schools_scored": len(health_rows),
         "total_arr": total_arr,
+        "arr_churned_to_date": arr_churned,
         "projected_nrr": round(projected_nrr, 4),
+        "definitions": {
+            "at_risk": f"Health score below {health.RISK_THRESHOLD}, renewal still ahead",
+            "ready": f"PQL score {pql.READY_THRESHOLD} or higher",
+            "projected_nrr": "(total paid ARR − ARR already churned − ARR at risk) / total paid ARR. "
+                             "No expansion revenue: seats never change in the simulation.",
+        },
     })
+
+
+# ---------- meta ----------
+
+@app.get("/meta")
+def get_meta():
+    replay = list(C.mondays())
+    return JSONResponse({
+        "demo_as_of": C.DEMO_AS_OF.isoformat(),
+        "sim_start": C.START.isoformat(),
+        "sim_end": C.END.isoformat(),
+        "replay_start": replay[0].isoformat(),
+        "replay_end": replay[-1].isoformat(),
+        "shared_calendar": C.SHARED_CALENDAR,
+        "windows": {"school_days": C.WINDOW_SCHOOL_DAYS, "calendar_days": C.WINDOW_CAL_DAYS},
+        "thresholds": {
+            "pql_ready": pql.READY_THRESHOLD,
+            "pql_admin_ready": pql.ADMIN_READY_THRESHOLD,
+            "health_at_risk_below": health.RISK_THRESHOLD,
+            "renewal_buffer_days": health.RENEWAL_BUFFER_DAYS,
+            "health_min_school_days": health.MIN_SCHOOL_DAYS,
+        },
+    })
+
+
+# ---------- one school ----------
+
+def _school_or_404(con, school_id: str) -> dict:
+    df = con.execute("SELECT * FROM schools WHERE school_id = ?", [school_id]).df()
+    if df.empty:
+        raise HTTPException(404, f"school {school_id!r} not found")
+    return df.iloc[0]
+
+
+def _renewal_outcome(con, school_id: str, d: date) -> Optional[str]:
+    row = con.execute("""
+        SELECT event FROM events WHERE school_id = ? AND day <= ?
+          AND event IN ('plan_renewed', 'plan_churned', 'plan_expanded')
+        ORDER BY day DESC LIMIT 1""", [school_id, d]).fetchone()
+    return {"plan_renewed": "renewed", "plan_churned": "churned",
+            "plan_expanded": "expanded"}.get(row[0]) if row else None
+
+
+@app.get("/schools/{school_id}")
+def get_school(school_id: str, as_of: Optional[str] = Query(None)):
+    """Profile, lifecycle, current score, and the school-day vs calendar-day windows at as_of."""
+    d = _parse_date(as_of)
+    con = connect()
+    s = _school_or_404(con, school_id)
+    feats = {m: account_features(con, [d], mode=m) for m in ("school_days", "calendar")}
+    row = {m: f[f.school_id == school_id].iloc[0] for m, f in feats.items()}
+    sd = row["school_days"]
+
+    score, kind, outcome = None, None, None
+    if s.plan_at_start == "free":
+        kind = "pql"
+        if _iso(sd.converted_on):
+            lifecycle = "converted"
+        elif _iso(sd.first_signup) is None:
+            lifecycle = "no_signup"
+        else:
+            lifecycle = "free"
+            scored = pql.score(feats["school_days"])
+            hit = scored[scored.school_id == school_id]
+            if not hit.empty:
+                score = _pql_row(hit.iloc[0], d)
+    else:
+        kind = "health"
+        outcome = _renewal_outcome(con, school_id, d)
+        scored = health.score(feats["school_days"])
+        hit = scored[scored.school_id == school_id]
+        if outcome:
+            lifecycle = outcome
+        elif hit.empty:
+            lifecycle = "not_started"  # fewer than one full window of school days so far
+        else:
+            lifecycle = "paid"
+            score = _health_row(hit.iloc[0], d)
+
+    return JSONResponse({
+        "as_of": d.isoformat(),
+        **_profile(sd),
+        "plan": s.plan_at_start,
+        "students": int(s.students),
+        "region": s.region,
+        "signup_date": _iso(s.signup_date),
+        "renewal_date": _iso(s.renewal_date),
+        "arr": int(s.arr),
+        "lifecycle": lifecycle,
+        "renewal_outcome": outcome,
+        "first_signup": _iso(sd.first_signup),
+        "converted_on": _iso(sd.converted_on),
+        "score_kind": kind,
+        "score": score,
+        "school_days_elapsed": int(sd.school_days_elapsed),
+        "windows": {
+            "school_days": {**_window(row["school_days"], d), "length": C.WINDOW_SCHOOL_DAYS,
+                            "unit": "school days", "calendar_id": sd.calendar_id},
+            "calendar": {**_window(row["calendar"], d), "length": C.WINDOW_CAL_DAYS,
+                         "unit": "calendar days"},
+        },
+    })
+
+
+@app.get("/schools/{school_id}/history")
+def get_school_history(school_id: str, as_of: Optional[str] = Query(None),
+                       mode: str = Query("school_days", pattern="^(school_days|calendar)$")):
+    """The school's score every Monday from the replay start up to as_of, in one window mode."""
+    d = _parse_date(as_of)
+    con = connect()
+    s = _school_or_404(con, school_id)
+    dates = list(C.mondays(C.REPLAY_START, d))
+    points = []
+    if dates:
+        feats = account_features(con, dates, mode=mode)
+        kind = "pql" if s.plan_at_start == "free" else "health"
+        scored = (pql.score(feats) if kind == "pql" else health.score(feats))
+        scored = scored[scored.school_id == school_id].sort_values("as_of")
+        col = "pql_score" if kind == "pql" else "health_score"
+        points = [{"as_of": _iso(r.as_of), "score": int(r[col]), "status": r.status, "reasons": r.reasons,
+                   "active_teachers": int(r.active_teachers), "student_sessions": int(r.student_sessions)}
+                  for _, r in scored.iterrows()]
+    return JSONResponse({"school_id": school_id, "as_of": d.isoformat(), "mode": mode,
+                         "score_kind": "pql" if s.plan_at_start == "free" else "health", "points": points})
+
+
+@app.get("/schools/{school_id}/usage")
+def get_school_usage(school_id: str, as_of: Optional[str] = Query(None)):
+    """Daily usage from the start of the simulated year to as_of (teacher role only),
+    with each day's kind on the school's own calendar."""
+    d = _parse_date(as_of)
+    con = connect()
+    s = _school_or_404(con, school_id)
+    df = con.execute("""
+        SELECT c.day, c.kind,
+            count(DISTINCT CASE WHEN e.event = 'teacher_active' AND t.role = 'teacher'
+                                THEN e.teacher_id END)                                  AS active_teachers,
+            coalesce(sum(CASE WHEN e.event = 'student_session' THEN e.n END), 0)        AS student_sessions,
+            coalesce(sum(CASE WHEN e.event = 'tutor_created' AND t.role = 'teacher'
+                              THEN e.n END), 0)                                         AS tutors_created
+        FROM school_calendars c
+        LEFT JOIN events e ON e.day = c.day AND e.school_id = ?
+        LEFT JOIN teachers t ON t.teacher_id = e.teacher_id
+        WHERE c.calendar_id = ? AND c.day <= ?
+        GROUP BY 1, 2 ORDER BY 1
+    """, [school_id, s.calendar_id, d]).df()
+    days = [{"day": _iso(r.day), "kind": r.kind, "active_teachers": int(r.active_teachers),
+             "student_sessions": int(r.student_sessions), "tutors_created": int(r.tutors_created)}
+            for _, r in df.iterrows()]
+    return JSONResponse({"school_id": school_id, "as_of": d.isoformat(),
+                         "calendar_id": s.calendar_id, "days": days})
+
+
+def _calendar(con, calendar_id: str) -> Optional[dict]:
+    cal = con.execute("SELECT day, kind FROM school_calendars WHERE calendar_id = ? ORDER BY day",
+                      [calendar_id]).df()
+    if cal.empty:
+        return None
+    instr = cal[cal.kind == "instructional"].day
+    breaks, run = [], None
+    for _, r in cal.iterrows():  # consecutive 'break' days form one break
+        if r.kind == "break":
+            run = [r.day, r.day] if run is None else [run[0], r.day]
+        elif run is not None:
+            breaks.append(run); run = None
+    if run is not None:
+        breaks.append(run)
+    return {"calendar_id": calendar_id, "first_day": _iso(instr.min()), "last_day": _iso(instr.max()),
+            "school_days": int(len(instr)),
+            "breaks": [{"start": _iso(a), "end": _iso(b)} for a, b in breaks]}
+
+
+@app.get("/calendars/{calendar_id}")
+def get_calendar(calendar_id: str):
+    cal = _calendar(connect(), calendar_id)
+    if cal is None:
+        raise HTTPException(404, f"calendar {calendar_id!r} not found")
+    return JSONResponse(cal)
 
 
 # ---------- backtest ----------
 
-def _is_break(d: date) -> bool:
-    return any(a <= d <= b for a, b in C.BREAKS)
-
-
 @app.get("/backtest")
 def get_backtest():
+    """Weekly at-risk counts, naive (calendar windows) vs Kindling (school days), every
+    Monday of the replay. Descriptive only: no outcomes needed. The graded metrics
+    (precision, recall, false alarms) come from /backtest/results."""
     con = connect()
-
-    # Advance to the first Monday on or after START
-    d = C.START
-    while d.weekday() != 0:
-        d += timedelta(days=1)
-
+    dates = list(C.mondays())
+    counts = {}
+    for label, mode in (("kindling", "school_days"), ("naive", "calendar")):
+        scored = health.score(account_features(con, dates, mode=mode))
+        at_risk = scored[scored.status == "At risk"]
+        counts[label] = at_risk.groupby(at_risk.as_of.dt.date).size().to_dict()
+    cal = _calendar(con, C.SHARED_CALENDAR)
+    breaks = [(date.fromisoformat(b["start"]), date.fromisoformat(b["end"])) for b in cal["breaks"]]
+    first, last = date.fromisoformat(cal["first_day"]), date.fromisoformat(cal["last_day"])
     weeks = []
-    naive_false_alarm_total = 0
-    naive_winter_alerts = 0
-    kindling_winter_alerts = 0
-    naive_lead_times: list[int] = []
-    kindling_lead_times: list[int] = []
-
-    winter_follow_week = date(2026, 1, 5)
-
-    while d <= C.END:
-        kindling_feats = account_features(con, [d], mode="school_days")
-        naive_feats = account_features(con, [d], mode="calendar")
-
-        kindling_scored = health.score(kindling_feats)
-        naive_scored = health.naive_health(naive_feats)
-
-        kindling_at_risk = kindling_scored[kindling_scored.status == "At risk"]
-        naive_at_risk = naive_scored[naive_scored.status == "At risk"]
-
+    for d in dates:
+        week = [d + timedelta(days=i) for i in range(7)]
         weeks.append({
             "date": d.isoformat(),
-            "naive": len(naive_at_risk),
-            "kindling": len(kindling_at_risk),
-            "is_break": _is_break(d),
+            "naive": int(counts["naive"].get(d, 0)),
+            "kindling": int(counts["kindling"].get(d, 0)),
+            "is_break": any(a <= x <= b for x in week for a, b in breaks),
+            "is_summer": d > last or d + timedelta(days=6) < first,
         })
-
-        # False alarms: naive flags a school that kindling considers healthy
-        kindling_healthy_ids = set(
-            kindling_scored[kindling_scored.status != "At risk"].school_id
-        )
-        naive_false_alarm_total += len(
-            set(naive_at_risk.school_id) & kindling_healthy_ids
-        )
-
-        if d == winter_follow_week:
-            naive_winter_alerts = len(naive_at_risk)
-            kindling_winter_alerts = len(kindling_at_risk)
-
-        for _, row in naive_at_risk.iterrows():
-            naive_lead_times.append(int(row.days_to_renewal))
-        for _, row in kindling_at_risk.iterrows():
-            kindling_lead_times.append(int(row.days_to_renewal))
-
-        d += timedelta(days=7)
-
-    naive_median = int(statistics.median(naive_lead_times)) if naive_lead_times else 0
-    kindling_median = int(statistics.median(kindling_lead_times)) if kindling_lead_times else 0
-
-    results = [
-        {
-            "metric": "False alarms on healthy schools",
-            "naive": naive_false_alarm_total,
-            "kindling": 0,
-            "kindling_better": True,
-        },
-        {
-            "metric": "Alerts fired the week after winter break",
-            "naive": naive_winter_alerts,
-            "kindling": kindling_winter_alerts,
-            "kindling_better": kindling_winter_alerts < naive_winter_alerts,
-        },
-        {
-            "metric": "Median lead time before renewal (days)",
-            "naive": naive_median,
-            "kindling": kindling_median,
-            "kindling_better": kindling_median >= naive_median,
-        },
-    ]
-
     return JSONResponse({
+        "replay": {"start": dates[0].isoformat(), "end": dates[-1].isoformat()},
+        "calendar": cal,
         "weeks": weeks,
-        "results": results,
-        "takeaway": (
-            "The naive model panics every time school goes on break. "
-            "Counting school days instead of calendar days keeps alerts flat through breaks, "
-            "so the alerts that do fire are real declines."
-        ),
     })
+
+
+@app.get("/backtest/results")
+def get_backtest_results():
+    """Backtest metrics exactly as backtest.py printed them, read from results/*.json.
+    backtest.py is the only module that grades against outcomes; this endpoint only
+    serves its files, with each file's source and run timestamp."""
+    runs, missing = [], []
+    for run_id in RESULT_RUNS:
+        path = C.RESULTS_DIR / f"{run_id}.json"
+        if path.exists():
+            runs.append(json.loads(path.read_text()))
+        else:
+            missing.append(run_id)
+    return JSONResponse({"runs": runs, "missing": missing})
 
 
 # ---------- Slack formatting ----------
@@ -264,7 +453,7 @@ def _pql_block(account: dict) -> dict:
     score = account["pql_score"]
     name = account["name"]
     reasons = account["reasons"]
-    text = f"🟠 *{name}* · PQL {score} · Ready\n"
+    text = f"🟢 *{name}* · PQL {score} · Ready\n"
     text += "\n".join(f"• {r}" for r in reasons[:3])
     return {"type": "section", "text": {"type": "mrkdwn", "text": text}}
 
@@ -399,15 +588,13 @@ def slack_pql(as_of: Optional[str] = Query(None)):
 
 @app.get("/slack/health")
 def slack_health(as_of: Optional[str] = Query(None)):
-    """Slack blocks for At risk schools with ≥45 days until renewal."""
+    """Slack blocks for At risk schools (the same definition as every screen), lowest score first."""
     d = _parse_date(as_of)
-    scores = [s for s in _scored_health(d)
-              if s["status"] == "At risk" and s["days_to_renewal"] >= health.RENEWAL_BUFFER_DAYS
-              ][:TOP_N_SLACK]
+    scores = [s for s in _scored_health(d) if s["status"] == "At risk"][:TOP_N_SLACK]
     if not scores:
         return JSONResponse({"blocks": [{"type": "section", "text": {
             "type": "mrkdwn",
-            "text": f"No at-risk schools with 45+ days to renewal as of {d}."}}]})
+            "text": f"No at-risk schools as of {d}."}}]})
     arr_at_risk = sum(s["arr"] for s in scores)
     header = {"type": "header", "text": {"type": "plain_text",
               "text": f"⚠️ {len(scores)} school{'s' if len(scores) != 1 else ''} at risk · "

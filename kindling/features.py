@@ -106,11 +106,14 @@ SELECT l.as_of, s.school_id, s.name, s.type, s.plan_at_start, s.seats, s.arr, s.
     coalesce(g.student_sessions_prev, 0) AS student_sessions_prev,
     coalesce(g.tutors_created, 0)        AS tutors_created,
     coalesce(h.aha_teachers, 0)          AS aha_teachers,
-    coalesce(ix.i, 0)                    AS school_days_elapsed
+    coalesce(ix.i, 0)                    AS school_days_elapsed,
+    w.start                              AS window_start,
+    w.prev_start                         AS window_prev_start
 FROM life l
 JOIN schools s USING (school_id)
 JOIN sch ON sch.school_id = l.school_id
 LEFT JOIN idx ix ON ix.as_of = l.as_of AND ix.calendar_id = sch.calendar_id
+LEFT JOIN win w ON w.as_of = l.as_of AND w.calendar_id = sch.calendar_id
 LEFT JOIN agg g ON g.as_of = l.as_of AND g.school_id = l.school_id
 LEFT JOIN aha h ON h.as_of = l.as_of AND h.school_id = l.school_id
 ORDER BY l.as_of, s.school_id
@@ -125,7 +128,9 @@ def account_features(con, as_of_dates: list[date], mode: str = "school_days") ->
     """One row per (as_of, school) with usage features over the chosen window.
 
     school_days_elapsed counts instructional days so far on the calendar the
-    window used. The simulation covers one school year; with several years of
+    window used. window_start / window_prev_start are the first days of the
+    current and prior windows (the current window ends at as_of, the prior one
+    the day before window_start). The simulation covers one school year; with several years of
     real data this count has to restart each year.
     """
     if mode not in MODES:

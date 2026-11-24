@@ -102,15 +102,15 @@ The health results:
 |---|---|---|
 | Churners flagged 45+ days before renewal | 21/22 (95%) | 17/22 (77%) |
 | Median lead time on those churners | 114 days | 80 days |
-| Healthy schools ever flagged at risk (false alarms) | 58/58 (100%) | **0/58 (0%)** |
+| Healthy schools ever flagged at risk (false alarms) | 57/58 (98%) | **0/58 (0%)** |
 
 How to read it:
 
-- The naive model catches more churners because it flags every school at some point, mostly around breaks. On Monday Jan 5, the first day back from winter break, it flags 78 schools, 57 of them healthy. Kindling flags 3, none of them healthy. CS would learn to ignore the naive alerts within a month.
+- The naive model catches more churners because it flags nearly every school at some point (57 of the 58 healthy ones), mostly around breaks. On Monday Jan 5, the first day back from winter break, it flags 78 schools, 57 of them healthy. Kindling flags 3, none of them healthy. CS would learn to ignore the naive alerts within a month.
 - The honest cost of school days is a few churners caught later or missed (77% vs 95%), and a shorter lead time (80 vs 114 days). Say so.
 - **The threshold has a history.** It started at 50. On Nov 17 it was raised to 70 because at 50 no school showed as at risk in the dashboard. That was a UI reason, not tuning on results. Health recall went from 41% to 77%, with false alarms still at 0.
   - A later threshold sweep picked 70 on fall data, independently, and it held up on spring.
-- **The margin is thin.** The lowest score any healthy school reaches before its renewal is 72, two points above the line. At 75, spring false alarms jump to 14%.
+- **The margin is thin.** The lowest score any healthy school reaches before its renewal is 72, two points above the line. At 75, spring false alarms already start (3%), and at 80 they reach 17%.
 
 A logistic regression was trained on fall and tested on spring with the same features, as an honest comparison:
 - PQL: it gets more recall (91% vs 70%) but much lower precision (40% vs 70%).
@@ -118,7 +118,7 @@ A logistic regression was trained on fall and tested on spring with the same fea
 
 ### 6. Experiments (separate runs; they never change the numbers above)
 
-- **District calendars:** see the section below. One national calendar false-alarms on 83% of healthy schools in a world where districts break on different weeks. District calendars: 0%.
+- **District calendars:** see the section below. One national calendar false-alarms on 19% of healthy schools (11 of 58) in a world where districts break on different weeks. District calendars: 0%.
 - **Admin rule (PQL run 3):** Ready at 40 if an admin has signed up, aimed at the quiet converters.
   - Default world: it catches 26 of 28 real converters instead of 24, and precision dips from 77% to 74%.
   - Stress test where admins also sign up at schools that never buy: precision falls to 63%.
@@ -250,10 +250,12 @@ Health results in the district world:
 
 | | Calendar windows | School days, one national calendar | School days, district calendars |
 |---|---|---|---|
-| Healthy schools flagged (false alarms) | 58/58 (100%) | 48/58 (83%) | **0/58 (0%)** |
+| Healthy schools flagged (false alarms) | 57/58 (98%) | 11/58 (19%) | **0/58 (0%)** |
 | Churners flagged 45+ days before renewal | 22/22 | 18/22 | 17/22 |
 
-The national calendar's false alarms come from every region. When a district's spring break doesn't match the national one, those vacation days count as "school days" with nobody using the product.
+The national calendar's false alarms come from four of the five regions. When a district's spring break or last day doesn't match the national calendar, those days count as "school days" with nobody using the product.
+
+An earlier version of this table said 83% for the national calendar. That number was inflated: the scorer kept scoring schools *after* their renewal date, and schools in regions whose year ends in May looked dead all through June. Once a school has renewed there's nothing left to predict, so health now stops scoring it at its renewal date. The calendar effect is real, but it's 19% → 0%, not 83% → 0%.
 
 **Checking the checker.** The first run of the district world did *not* give 0%. District calendars still flagged 12 healthy schools, a 21% false-alarm rate, and all 12 were Northeast schools flagged on Sep 1.
 - **Why:** Northeast schools start Sep 2, so on Sep 1 their 10-school-day window was empty. An empty window and an empty window before it scores as "no data, neutral," which comes to 52.5, under the 70 line.
@@ -317,7 +319,7 @@ The buying score is account-level and rules-based: how many teachers are active,
 
 To test it, I replay the year every Monday using only data up to that day, then check against the hidden outcomes. Compared to the common 'built 5+ tutors' rule, precision went from 37% to 77%, with about four weeks of lead time. It catches 71% of buyers, just over my 70% goal. The misses are mostly schools where only two or three teachers ever used it.
 
-The health score is where school days earn their keep. A calendar-day model flags every healthy school at some point in the year, mostly around winter break. Kindling flags none of them, and still catches 77% of churners at least 45 days before renewal. I also gave every district its own calendar in a second simulation. One national calendar still false-alarms on 83% of healthy schools; district calendars bring that back to zero.
+The health score is where school days earn their keep. A calendar-day model flags 57 of the 58 healthy schools at some point in the year, mostly around winter break. Kindling flags none of them, and still catches 77% of churners at least 45 days before renewal. I also gave every district its own calendar in a second simulation. One national calendar still false-alarms on about one healthy school in five; district calendars bring that to zero.
 
 Alerts go to Slack through n8n, with Claude drafting the first email from the computed reasons, and there's a dashboard. I'd love to hear how you think about this at Flint."
 
@@ -332,7 +334,7 @@ I don't have access to a real company's usage data, and I wouldn't want to use r
 Scores need to be the same every time, explainable, and testable on a backtest. An LLM scoring accounts would be hard to audit and costly to run across every school every week. In the rules, an LLM is only allowed to turn already-computed reasons into nicer sentences.
 
 **3. How do you know it works?**
-The backtest. It replays every Monday using only past data and checks against hidden outcomes. Tests make sure the scorer can't read the answers or see the future. The buying score beats a simple baseline on precision (77% vs 37%), with 71% recall, just over my 70% target. On churn: 0 false alarms vs 58 for a calendar-day model, while catching 77% of churners 45+ days out. It's honest about the cost: the calendar-day model catches more churners (95%), because it flags everyone.
+The backtest. It replays every Monday using only past data and checks against hidden outcomes. Tests make sure the scorer can't read the answers or see the future. The buying score beats a simple baseline on precision (77% vs 37%), with 71% recall, just over my 70% target. On churn: 0 false alarms vs 57 for a calendar-day model, while catching 77% of churners 45+ days out. It's honest about the cost: the calendar-day model catches more churners (95%), because it flags everyone.
 
 **4. What would change with real data?**
 Real event names and messier tracking. Real calendars that differ by district. That part is built: each school's windows follow its own calendar, and it's tested in a second simulated world. In production the calendars have to come from somewhere, like district websites or asking the admin at onboarding. Outcomes depend on things usage can't see, like budget timing. Thresholds would be re-set on real outcomes with the sweep tool: tune on one semester, check on the next. Firmographic enrichment through Clay works by hand today.

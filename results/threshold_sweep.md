@@ -35,9 +35,9 @@ Fall pick (precision ≥ 60%): **35** vs 60 in config.py; it **fails the same ru
 | 60                      | 14%           | 0%                  | 59%             | 0%                    |
 | 65                      | 14%           | 0%                  | 59%             | 0%                    |
 | 70 ← config ← fall pick | 27%           | 0%                  | 59%             | 0%                    |
-| 75                      | 27%           | 0%                  | 73%             | 14%                   |
-| 80                      | 27%           | 0%                  | 77%             | 66%                   |
-| 85                      | 27%           | 3%                  | 82%             | 98%                   |
+| 75                      | 27%           | 0%                  | 73%             | 3%                    |
+| 80                      | 27%           | 0%                  | 77%             | 17%                   |
+| 85                      | 27%           | 3%                  | 82%             | 66%                   |
 | 90                      | 32%           | 33%                 | 82%             | 100%                  |
 
 Fall pick (false alarms ≤ 5%): **70**, same as config.py; it also meets the rule on spring.

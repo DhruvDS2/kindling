@@ -1,0 +1,282 @@
+{
+  "id": "district_calendar_backtest",
+  "title": "District calendars backtest",
+  "source": "results/district_calendar_backtest.md",
+  "note": "A second simulated world (`python -m kindling.simulate --calendars district`): same schools and archetypes, but each school follows its district's calendar (different start and end dates, February and April vacations in the Northeast, early-March spring break in the Southwest). Scoring rules and thresholds are unchanged from the main backtest.",
+  "generated_at": "2026-11-24T00:41:01+00:00",
+  "commit": "1235173",
+  "replay": {
+    "start": "2025-09-01",
+    "end": "2026-07-27"
+  },
+  "tables": [
+    {
+      "title": "Health (paying schools)",
+      "note": null,
+      "index_name": null,
+      "columns": [
+        "Naive: calendar windows",
+        "School days, one national calendar",
+        "Kindling: school days, district calendars"
+      ],
+      "rows": [
+        {
+          "label": "churners flagged \u226545 days early",
+          "values": [
+            "22 / 22",
+            "18 / 22",
+            "17 / 22"
+          ],
+          "display": [
+            "22 / 22",
+            "18 / 22",
+            "17 / 22"
+          ]
+        },
+        {
+          "label": "recall (churners)",
+          "values": [
+            1.0,
+            0.8181818181818182,
+            0.7727272727272727
+          ],
+          "display": [
+            "100%",
+            "82%",
+            "77%"
+          ]
+        },
+        {
+          "label": "median lead time on churners (days)",
+          "values": [
+            100.5,
+            76.0,
+            80.0
+          ],
+          "display": [
+            "100",
+            "76",
+            "80"
+          ]
+        },
+        {
+          "label": "false alarms (healthy flagged at risk)",
+          "values": [
+            57,
+            11,
+            0
+          ],
+          "display": [
+            "57",
+            "11",
+            "0"
+          ]
+        },
+        {
+          "label": "false alarm rate",
+          "values": [
+            0.9827586206896551,
+            0.1896551724137931,
+            0.0
+          ],
+          "display": [
+            "98%",
+            "19%",
+            "0%"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "False alarms by calendar",
+      "note": "Healthy schools flagged at risk at least once, by the calendar the school actually follows.",
+      "index_name": "calendar",
+      "columns": [
+        "healthy paid schools",
+        "Naive: calendar windows",
+        "School days, one national calendar",
+        "Kindling: school days, district calendars"
+      ],
+      "rows": [
+        {
+          "label": "midwest",
+          "values": [
+            12,
+            12,
+            0,
+            0
+          ],
+          "display": [
+            "12",
+            "12",
+            "0",
+            "0"
+          ]
+        },
+        {
+          "label": "northeast",
+          "values": [
+            12,
+            12,
+            3,
+            0
+          ],
+          "display": [
+            "12",
+            "12",
+            "3",
+            "0"
+          ]
+        },
+        {
+          "label": "southeast",
+          "values": [
+            14,
+            14,
+            5,
+            0
+          ],
+          "display": [
+            "14",
+            "14",
+            "5",
+            "0"
+          ]
+        },
+        {
+          "label": "southwest",
+          "values": [
+            6,
+            6,
+            2,
+            0
+          ],
+          "display": [
+            "6",
+            "6",
+            "2",
+            "0"
+          ]
+        },
+        {
+          "label": "west",
+          "values": [
+            14,
+            13,
+            1,
+            0
+          ],
+          "display": [
+            "14",
+            "13",
+            "1",
+            "0"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "PQL (free schools)",
+      "note": null,
+      "index_name": null,
+      "columns": [
+        "Naive: calendar windows",
+        "School days, one national calendar",
+        "Kindling: school days, district calendars"
+      ],
+      "rows": [
+        {
+          "label": "schools flagged",
+          "values": [
+            32,
+            33,
+            32
+          ],
+          "display": [
+            "32",
+            "33",
+            "32"
+          ]
+        },
+        {
+          "label": "flagged that converted",
+          "values": [
+            25,
+            26,
+            25
+          ],
+          "display": [
+            "25",
+            "26",
+            "25"
+          ]
+        },
+        {
+          "label": "precision",
+          "values": [
+            0.78125,
+            0.7878787878787878,
+            0.78125
+          ],
+          "display": [
+            "78%",
+            "79%",
+            "78%"
+          ]
+        },
+        {
+          "label": "converters caught before converting",
+          "values": [
+            "25 / 34",
+            "26 / 34",
+            "25 / 34"
+          ],
+          "display": [
+            "25 / 34",
+            "26 / 34",
+            "25 / 34"
+          ]
+        },
+        {
+          "label": "recall",
+          "values": [
+            0.7352941176470589,
+            0.7647058823529411,
+            0.7352941176470589
+          ],
+          "display": [
+            "74%",
+            "76%",
+            "74%"
+          ]
+        },
+        {
+          "label": "median lead time (days)",
+          "values": [
+            29.0,
+            28.5,
+            29.0
+          ],
+          "display": [
+            "29",
+            "28",
+            "29"
+          ]
+        },
+        {
+          "label": "top 20 on 2026-02-02 that later converted",
+          "values": [
+            "8 / 20",
+            "8 / 20",
+            "8 / 20"
+          ],
+          "display": [
+            "8 / 20",
+            "8 / 20",
+            "8 / 20"
+          ]
+        }
+      ]
+    }
+  ]
+}

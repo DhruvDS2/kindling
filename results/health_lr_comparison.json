@@ -1,0 +1,80 @@
+{
+  "id": "health_lr_comparison",
+  "title": "Health: rules vs logistic regression",
+  "source": "results/health_lr_comparison.md",
+  "note": "Trained on Mondays \u2264 2025-12-31 (fall). Tested on Mondays > 2025-12-31 (spring). LR uses the same point-in-time features.",
+  "generated_at": "2026-11-24T00:40:59+00:00",
+  "commit": "1235173",
+  "replay": {
+    "start": "2025-09-01",
+    "end": "2026-07-27"
+  },
+  "tables": [
+    {
+      "title": null,
+      "note": null,
+      "index_name": null,
+      "columns": [
+        "Rules (spring only)",
+        "Logistic regression (trained fall)"
+      ],
+      "rows": [
+        {
+          "label": "churners flagged \u226545 days early",
+          "values": [
+            "13 / 22",
+            "18 / 22"
+          ],
+          "display": [
+            "13 / 22",
+            "18 / 22"
+          ]
+        },
+        {
+          "label": "recall (churners)",
+          "values": [
+            0.5909090909090909,
+            0.8181818181818182
+          ],
+          "display": [
+            "59%",
+            "82%"
+          ]
+        },
+        {
+          "label": "median lead time on churners (days)",
+          "values": [
+            72.0,
+            116.0
+          ],
+          "display": [
+            "72",
+            "116"
+          ]
+        },
+        {
+          "label": "false alarms (healthy flagged at risk)",
+          "values": [
+            0,
+            58
+          ],
+          "display": [
+            "0",
+            "58"
+          ]
+        },
+        {
+          "label": "false alarm rate",
+          "values": [
+            0.0,
+            1.0
+          ],
+          "display": [
+            "0%",
+            "100%"
+          ]
+        }
+      ]
+    }
+  ]
+}

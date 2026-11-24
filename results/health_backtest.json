@@ -1,0 +1,80 @@
+{
+  "id": "health_backtest",
+  "title": "Health backtest",
+  "source": "results/health_backtest.md",
+  "note": "Replayed every Monday from 2025-09-01 to 2026-07-31. A school is flagged the first Monday its score drops below 70. A churner flag counts as early if it comes \u226545 days before renewal. False alarms are healthy schools incorrectly flagged at risk.",
+  "generated_at": "2026-11-24T00:40:57+00:00",
+  "commit": "1235173",
+  "replay": {
+    "start": "2025-09-01",
+    "end": "2026-07-27"
+  },
+  "tables": [
+    {
+      "title": null,
+      "note": null,
+      "index_name": null,
+      "columns": [
+        "Naive: calendar windows",
+        "Kindling: school-day windows"
+      ],
+      "rows": [
+        {
+          "label": "churners flagged \u226545 days early",
+          "values": [
+            "21 / 22",
+            "17 / 22"
+          ],
+          "display": [
+            "21 / 22",
+            "17 / 22"
+          ]
+        },
+        {
+          "label": "recall (churners)",
+          "values": [
+            0.9545454545454546,
+            0.7727272727272727
+          ],
+          "display": [
+            "95%",
+            "77%"
+          ]
+        },
+        {
+          "label": "median lead time on churners (days)",
+          "values": [
+            114.0,
+            80.0
+          ],
+          "display": [
+            "114",
+            "80"
+          ]
+        },
+        {
+          "label": "false alarms (healthy flagged at risk)",
+          "values": [
+            57,
+            0
+          ],
+          "display": [
+            "57",
+            "0"
+          ]
+        },
+        {
+          "label": "false alarm rate",
+          "values": [
+            0.9827586206896551,
+            0.0
+          ],
+          "display": [
+            "98%",
+            "0%"
+          ]
+        }
+      ]
+    }
+  ]
+}

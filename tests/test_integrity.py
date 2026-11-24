@@ -11,7 +11,9 @@ from kindling import config as C
 from kindling import health, pql
 from kindling.features import account_features
 
-ENGINE_MODULES = ["features.py", "pql.py", "health.py"]  # add api.py as it lands
+# Everything that serves or shows scores must be blind to outcomes. Paths are from the repo root.
+ENGINE_MODULES = ["kindling/features.py", "kindling/pql.py", "kindling/health.py",
+                  "kindling/api.py", "kindling/report.py", "dashboard/app.py"]
 
 
 @pytest.fixture(scope="module")
@@ -22,11 +24,12 @@ def db_path(tmp_path_factory):
     return C.DB_PATH
 
 
+@pytest.mark.parametrize("mode", ["school_days", "school_days_shared", "calendar"])
 @pytest.mark.parametrize("as_of", [date(2025, 11, 3), date(2026, 1, 5), date(2026, 3, 23)])
-def test_features_never_use_future_events(db_path, tmp_path, as_of):
-    """Deleting every event after as_of must not change any feature."""
+def test_features_never_use_future_events(db_path, tmp_path, as_of, mode):
+    """Deleting every event after as_of must not change any feature, in any window mode."""
     full = duckdb.connect(str(db_path), read_only=True)
-    before = account_features(full, [as_of])
+    before = account_features(full, [as_of], mode=mode)
     full.close()
 
     cut_path = tmp_path / "cut.duckdb"
@@ -36,16 +39,15 @@ def test_features_never_use_future_events(db_path, tmp_path, as_of):
     for t in ("calendar", "school_calendars", "schools", "teachers", "events"):
         cut.execute(f"CREATE TABLE {t} AS SELECT * FROM src.{t}")
     cut.execute("DELETE FROM events WHERE day > ?", [as_of])
-    after = account_features(cut, [as_of])
+    after = account_features(cut, [as_of], mode=mode)
     cut.close()
 
     pd.testing.assert_frame_equal(before.reset_index(drop=True), after.reset_index(drop=True))
 
 
 def test_engine_never_reads_truth():
-    root = Path(C.ROOT) / "kindling"
     for name in ENGINE_MODULES:
-        src = (root / name).read_text()
+        src = (Path(C.ROOT) / name).read_text()
         assert not re.search(r"\btruth\b", src.split('"""', 2)[-1]), f"{name} mentions truth"
 
 
@@ -150,3 +152,44 @@ def test_scores_handle_dates_before_school_starts(db_path):
     scored = health.score(feats)
     assert scored.empty and {"health_score", "reasons", "status"} <= set(scored.columns)
     assert set(pql.score(feats).columns) >= {"pql_score", "reasons", "status", "ready_rule"}
+
+
+
+# ---------- lifecycle and grading rules ----------
+
+def test_health_stops_scoring_at_renewal(db_path):
+    """Once a school's renewal date arrives the outcome is known: nothing left to predict."""
+    con = duckdb.connect(str(db_path), read_only=True)
+    from kindling.backtest import mondays
+    scored = health.score(account_features(con, list(mondays())))
+    assert (scored.days_to_renewal > 0).all()
+
+
+def test_a_flag_only_counts_before_conversion():
+    """evaluate() must not credit a flag raised on or after the purchase."""
+    from kindling.backtest import evaluate
+    truth = pd.DataFrame({"school_id": ["a", "b", "c"],
+                          "converts_on": [date(2026, 1, 10), date(2026, 1, 10), None]})
+    scored = pd.DataFrame({
+        "school_id": ["a", "b", "c"],
+        "as_of": pd.to_datetime([date(2026, 1, 5), date(2026, 1, 12), date(2026, 1, 5)]),
+        "status": ["Ready", "Ready", "Ready"],
+        "pql_score": [70, 70, 70],
+    })
+    m = evaluate(scored, truth)
+    assert m["flagged that converted"] == 1      # only "a" was flagged before it bought
+    assert m["converters caught before converting"] == "1 / 2"
+
+
+def test_reasons_come_with_points(db_path):
+    con = duckdb.connect(str(db_path), read_only=True)
+    feats = account_features(con, [date(2026, 2, 2)])
+    for scored in (pql.score(feats), health.score(feats)):
+        for details, top3 in zip(scored.reason_details, scored.reasons):
+            assert top3 == [d["text"] for d in details[:3]]
+            assert all({"text", "points", "max_points"} <= set(d) for d in details)
+    # health ranks by points lost, so an at-risk school's first reason is a real drag
+    h = health.score(feats)
+    for details in h[h.status == "At risk"].reason_details:
+        lost = [d["max_points"] - d["points"] for d in details]
+        assert lost == sorted(lost, reverse=True)

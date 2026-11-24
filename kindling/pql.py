@@ -24,24 +24,33 @@ MOMENTUM_POINTS     = C.PQL_MOMENTUM_POINTS
 BUILD_NO_USE_PENALTY = C.PQL_BUILD_NO_USE
 
 
-def _reasons(row) -> list[tuple[float, str]]:
+def _reasons(row) -> list[tuple[float, str, float]]:
+    """(points earned, reason, most points this reason can give)."""
     r = []
     a, aha = int(row.active_teachers), int(row.aha_teachers)
     if a:
         r.append((BREADTH_MAX * min(a, BREADTH_CAP) / BREADTH_CAP,
-                  f"{a} teacher{'s' if a != 1 else ''} active in the window"))
+                  f"{a} teacher{'s' if a != 1 else ''} active in the window", BREADTH_MAX))
     if aha:
         r.append((DEPTH_MAX * min(aha, DEPTH_CAP) / DEPTH_CAP,
                   f"{aha} teacher{'s' if aha != 1 else ''} with heavy student use "
-                  f"({int(row.student_sessions)} student sessions)"))
+                  f"({int(row.student_sessions)} student sessions)", DEPTH_MAX))
     if pd.notna(row.admin_signed_up_on):
-        r.append((ADMIN_POINTS, "An admin signed up"))
+        r.append((ADMIN_POINTS, "An admin signed up", ADMIN_POINTS))
     if a >= 2 and a > row.active_teachers_prev:
-        r.append((MOMENTUM_POINTS, f"Spreading: {int(row.active_teachers_prev)} → {a} active teachers"))
+        r.append((MOMENTUM_POINTS, f"Spreading: {int(row.active_teachers_prev)} → {a} active teachers",
+                  MOMENTUM_POINTS))
     if row.tutors_created >= 20 and row.student_sessions < row.tutors_created:
         r.append((BUILD_NO_USE_PENALTY,
-                  f"{int(row.tutors_created)} tutors built but only {int(row.student_sessions)} student sessions"))
+                  f"{int(row.tutors_created)} tutors built but only {int(row.student_sessions)} student sessions",
+                  0))
     return r
+
+
+def _details(r: list[tuple[float, str, float]]) -> list[dict]:
+    """Every reason with its points, biggest effect first. reasons = the first 3 texts."""
+    ranked = sorted(r, key=lambda x: abs(x[0]), reverse=True)
+    return [{"text": t, "points": round(p, 1), "max_points": m} for p, t, m in ranked]
 
 
 def score(features: pd.DataFrame, admin_threshold: int | None = None) -> pd.DataFrame:
@@ -56,11 +65,12 @@ def score(features: pd.DataFrame, admin_threshold: int | None = None) -> pd.Data
                   & features.first_signup.notna()].copy()
     if df.empty:  # e.g. before any free school has signed up
         return df.assign(pql_score=pd.Series(dtype=int), reasons=pd.Series(dtype=object),
+                         reason_details=pd.Series(dtype=object),
                          status=pd.Series(dtype=object), ready_rule=pd.Series(dtype=object))
     reasons = df.apply(_reasons, axis=1)
-    df["pql_score"] = reasons.apply(lambda r: round(min(max(sum(p for p, _ in r), 0), 100)))
-    df["reasons"] = reasons.apply(
-        lambda r: [t for _, t in sorted(r, key=lambda x: abs(x[0]), reverse=True)[:3]])
+    df["pql_score"] = reasons.apply(lambda r: round(min(max(sum(p for p, _, _ in r), 0), 100)))
+    df["reason_details"] = reasons.apply(_details)
+    df["reasons"] = df.reason_details.apply(lambda d: [x["text"] for x in d[:3]])
     by_score = df.pql_score >= READY_THRESHOLD
     by_admin = pd.Series(False, index=df.index)
     if admin_threshold is not None:

@@ -7,8 +7,10 @@ Run:  python -m kindling.backtest pql
 """
 from __future__ import annotations
 
+import json
+import subprocess
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
 
@@ -23,11 +25,56 @@ from kindling.features import account_features, connect
 SNAPSHOT = date(2026, 2, 2)  # mid-year "Monday morning" for the top-20 check
 
 
-def mondays(start=date(2025, 9, 1), end=C.END):
-    d = start
-    while d <= end:
-        yield d
-        d += timedelta(days=7)
+# ---------- machine-readable results (served by GET /backtest/results) ----------
+
+def _plain(v):
+    """numpy / pandas scalars → JSON values; NaN → None."""
+    if hasattr(v, "item"):
+        v = v.item()
+    if isinstance(v, float) and v != v:
+        return None
+    return v
+
+
+def _commit() -> str | None:
+    try:
+        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=C.ROOT,
+                             capture_output=True, text=True, timeout=5)
+        return out.stdout.strip() or None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def _write_json(run_id: str, title: str, note: str, tables: list[dict]):
+    """Write results/<run_id>.json next to results/<run_id>.md with the same numbers.
+
+    tables: [{"title": str | None, "raw": DataFrame, "fmt": DataFrame, "note": str | None}],
+    rows = index, columns = what's compared. `values` are raw numbers (0.77), `display`
+    is exactly what the markdown file prints ("77%").
+    """
+    out = {
+        "id": run_id, "title": title, "source": f"results/{run_id}.md", "note": note,
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "commit": _commit(),
+        "replay": {"start": C.REPLAY_START.isoformat(), "end": max(mondays()).isoformat()},
+        "tables": [],
+    }
+    for t in tables:
+        raw, fmt = t["raw"], t["fmt"]
+        out["tables"].append({
+            "title": t.get("title"), "note": t.get("note"),
+            "index_name": raw.index.name,
+            "columns": [str(c) for c in raw.columns],
+            "rows": [{"label": str(idx),
+                      "values": [_plain(raw.at[idx, c]) for c in raw.columns],
+                      "display": [str(fmt.at[fidx, c]) for c in fmt.columns]}
+                     for idx, fidx in zip(raw.index, fmt.index)],
+        })
+    C.RESULTS_DIR.mkdir(exist_ok=True)
+    (C.RESULTS_DIR / f"{run_id}.json").write_text(json.dumps(out, indent=2) + "\n")
+
+
+mondays = C.mondays  # every Monday from C.REPLAY_START to C.END
 
 
 def first_flags(scored: pd.DataFrame) -> pd.DataFrame:
@@ -75,12 +122,12 @@ def run_pql():
                     (f"{v:.0f}" if isinstance(v, float) else v)
                     for k, v in table[col].items()]
     C.RESULTS_DIR.mkdir(exist_ok=True)
-    md = ["# PQL backtest", "",
-          f"Replayed every Monday from {date(2025, 9, 1)} to {C.END}. "
-          f"A school is flagged the first Monday its score reaches {pql.READY_THRESHOLD}. "
-          "A flag counts as a hit only if the school converts *after* the flag.", "",
-          fmt.to_markdown(), ""]
+    note = (f"Replayed every Monday from {date(2025, 9, 1)} to {C.END}. "
+            f"A school is flagged the first Monday its score reaches {pql.READY_THRESHOLD}. "
+            "A flag counts as a hit only if the school converts *after* the flag.")
+    md = ["# PQL backtest", "", note, "", fmt.to_markdown(), ""]
     (C.RESULTS_DIR / "pql_backtest.md").write_text("\n".join(md))
+    _write_json("pql_backtest", "PQL backtest", note, [{"raw": table, "fmt": fmt}])
     print(fmt.to_string())
     return table
 
@@ -138,13 +185,13 @@ def run_health():
                     for k, v in table[col].items()]
 
     C.RESULTS_DIR.mkdir(exist_ok=True)
-    md = ["# Health backtest", "",
-          f"Replayed every Monday from {date(2025, 9, 1)} to {C.END}. "
-          f"A school is flagged the first Monday its score drops below {health.RISK_THRESHOLD}. "
-          f"A churner flag counts as early if it comes ≥{health.RENEWAL_BUFFER_DAYS} days before renewal. "
-          "False alarms are healthy schools incorrectly flagged at risk.", "",
-          fmt.to_markdown(), ""]
+    note = (f"Replayed every Monday from {date(2025, 9, 1)} to {C.END}. "
+            f"A school is flagged the first Monday its score drops below {health.RISK_THRESHOLD}. "
+            f"A churner flag counts as early if it comes ≥{health.RENEWAL_BUFFER_DAYS} days before renewal. "
+            "False alarms are healthy schools incorrectly flagged at risk.")
+    md = ["# Health backtest", "", note, "", fmt.to_markdown(), ""]
     (C.RESULTS_DIR / "health_backtest.md").write_text("\n".join(md))
+    _write_json("health_backtest", "Health backtest", note, [{"raw": table, "fmt": fmt}])
     print(fmt.to_string())
     return table
 
@@ -224,11 +271,11 @@ def run_lr_pql():
     print(fmt.to_string())
 
     md_path = C.RESULTS_DIR / "pql_lr_comparison.md"
-    md = ["# PQL: rules vs logistic regression", "",
-          f"Trained on Mondays ≤ {TRAIN_CUTOFF} (fall). Tested on Mondays > {TRAIN_CUTOFF} (spring). "
-          "LR uses the same point-in-time features; weights were not hand-tuned.", "",
-          fmt.to_markdown(), ""]
+    note = (f"Trained on Mondays ≤ {TRAIN_CUTOFF} (fall). Tested on Mondays > {TRAIN_CUTOFF} (spring). "
+            "LR uses the same point-in-time features; weights were not hand-tuned.")
+    md = ["# PQL: rules vs logistic regression", "", note, "", fmt.to_markdown(), ""]
     md_path.write_text("\n".join(md))
+    _write_json("pql_lr_comparison", "PQL: rules vs logistic regression", note, [{"raw": table, "fmt": fmt}])
     return table
 
 
@@ -287,11 +334,12 @@ def run_lr_health():
     print(fmt.to_string())
 
     md_path = C.RESULTS_DIR / "health_lr_comparison.md"
-    md = ["# Health: rules vs logistic regression", "",
-          f"Trained on Mondays ≤ {TRAIN_CUTOFF} (fall). Tested on Mondays > {TRAIN_CUTOFF} (spring). "
-          "LR uses the same point-in-time features.", "",
-          fmt.to_markdown(), ""]
+    note = (f"Trained on Mondays ≤ {TRAIN_CUTOFF} (fall). Tested on Mondays > {TRAIN_CUTOFF} (spring). "
+            "LR uses the same point-in-time features.")
+    md = ["# Health: rules vs logistic regression", "", note, "", fmt.to_markdown(), ""]
     md_path.write_text("\n".join(md))
+    _write_json("health_lr_comparison", "Health: rules vs logistic regression", note,
+                [{"raw": table, "fmt": fmt}])
     return table
 
 
@@ -351,17 +399,23 @@ def run_districts():
     fa_table.insert(0, "healthy paid schools", healthy_cal.calendar_id.value_counts())
     fa_table.index.name = "calendar"
 
+    note = ("A second simulated world (`python -m kindling.simulate --calendars district`): same "
+            "schools and archetypes, but each school follows its district's calendar (different "
+            "start and end dates, February and April vacations in the Northeast, early-March spring "
+            "break in the Southwest). Scoring rules and thresholds are unchanged from the main backtest.")
+    fa_note = "Healthy schools flagged at risk at least once, by the calendar the school actually follows."
+    health_df, pql_df = pd.DataFrame(health_res), pd.DataFrame(pql_res)
     _write("district_calendar_backtest.md", [
-        "# District calendars backtest", "",
-        "A second simulated world (`python -m kindling.simulate --calendars district`): same "
-        "schools and archetypes, but each school follows its district's calendar (different "
-        "start and end dates, February and April vacations in the Northeast, early-March spring "
-        "break in the Southwest). Scoring rules and thresholds are unchanged from the main backtest.", "",
-        "## Health (paying schools)", "", _fmt(pd.DataFrame(health_res)).to_markdown(), "",
-        "## False alarms by calendar", "",
-        "Healthy schools flagged at risk at least once, by the calendar the school actually follows.", "",
+        "# District calendars backtest", "", note, "",
+        "## Health (paying schools)", "", _fmt(health_df).to_markdown(), "",
+        "## False alarms by calendar", "", fa_note, "",
         fa_table.to_markdown(), "",
-        "## PQL (free schools)", "", _fmt(pd.DataFrame(pql_res)).to_markdown(), "",
+        "## PQL (free schools)", "", _fmt(pql_df).to_markdown(), "",
+    ])
+    _write_json("district_calendar_backtest", "District calendars backtest", note, [
+        {"title": "Health (paying schools)", "raw": health_df, "fmt": _fmt(health_df)},
+        {"title": "False alarms by calendar", "note": fa_note, "raw": fa_table, "fmt": fa_table},
+        {"title": "PQL (free schools)", "raw": pql_df, "fmt": _fmt(pql_df)},
     ])
 
 
@@ -403,26 +457,30 @@ def _admin_table(path) -> pd.DataFrame:
 
 
 def run_pql_admin():
+    note = (f"Run 2 is the headline PQL backtest: Ready at score ≥ {pql.READY_THRESHOLD}. Run 3 keeps "
+            f"that rule and adds one: a school where an admin has signed up is also Ready at ≥ "
+            f"{pql.ADMIN_READY_THRESHOLD}. The aim is the quiet converters run 2 misses (2–3 teachers, "
+            "lighter use). Weights unchanged; the 40 comes from reasoning about the quiet-converter "
+            "profile (see config.py), not from these results.")
+    caveat = ("**Caveat.** In the default simulator only converter-shaped schools (converters and "
+              "stalled) ever get an admin signup, so an admin rule is favoured by construction. "
+              "The stress test below gives admins to non-buying schools too.")
+    default = _admin_table(C.DB_PATH)
     lines = [
-        "# PQL run 3: lower threshold for schools with an admin", "",
-        f"Run 2 is the headline PQL backtest: Ready at score ≥ {pql.READY_THRESHOLD}. Run 3 keeps "
-        f"that rule and adds one: a school where an admin has signed up is also Ready at ≥ "
-        f"{pql.ADMIN_READY_THRESHOLD}. The aim is the quiet converters run 2 misses (2–3 teachers, "
-        "lighter use). Weights unchanged; the 40 comes from reasoning about the quiet-converter "
-        "profile (see config.py), not from these results.", "",
-        "## Default world", "", _fmt(_admin_table(C.DB_PATH)).to_markdown(), "",
-        "**Caveat.** In the default simulator only converter-shaped schools (converters and "
-        "stalled) ever get an admin signup, so an admin rule is favoured by construction. "
-        "The stress test below gives admins to non-buying schools too.", "",
+        "# PQL run 3: lower threshold for schools with an admin", "", note, "",
+        "## Default world", "", _fmt(default).to_markdown(), "", caveat, "",
     ]
+    tables = [{"title": "Default world", "note": caveat, "raw": default, "fmt": _fmt(default)}]
     if C.ADMIN_NOISE_DB_PATH.exists():
-        lines += [
-            "## Stress test: admins at 25% of non-buying schools", "",
-            "Same world, but a quarter of solo-star, builder and dormant schools also get an "
-            "admin signup 1–8 weeks after their first teacher (`simulate.py --admin-noise 0.25`).", "",
-            _fmt(_admin_table(C.ADMIN_NOISE_DB_PATH)).to_markdown(), "",
-        ]
+        noise = _admin_table(C.ADMIN_NOISE_DB_PATH)
+        noise_note = ("Same world, but a quarter of solo-star, builder and dormant schools also get an "
+                      "admin signup 1–8 weeks after their first teacher (`simulate.py --admin-noise 0.25`).")
+        lines += ["## Stress test: admins at 25% of non-buying schools", "", noise_note, "",
+                  _fmt(noise).to_markdown(), ""]
+        tables.append({"title": "Stress test: admins at 25% of non-buying schools", "note": noise_note,
+                       "raw": noise, "fmt": _fmt(noise)})
     _write("pql_admin_threshold.md", lines)
+    _write_json("pql_admin_threshold", "PQL run 3: lower threshold for schools with an admin", note, tables)
 
 
 # ---------- 5.3 threshold sweep (ready for real data) ----------
@@ -477,7 +535,8 @@ def run_sweep(db_path=None):
     health_pick = _pick(health_rows, lambda r: r["fall false alarms"] <= C.TUNE_HEALTH_MAX_FALSE_ALARM,
                         lambda r: (r["fall recall"], -r["threshold"]))
 
-    def table(rows, current, pick):
+    def frames(rows, current, pick):
+        """(raw, formatted), both indexed by "60 ← config ← fall pick"-style labels."""
         df = pd.DataFrame(rows).set_index("threshold")
         out = df.copy().astype(object)
         for c in df.columns:
@@ -486,7 +545,11 @@ def run_sweep(db_path=None):
         out.index = [f"{t}" + (" ← config" if t == current else "") +
                      (" ← fall pick" if pick and t == pick["threshold"] else "") for t in df.index]
         out.index.name = "threshold"
-        return out.to_markdown()
+        df.index = out.index
+        return df, out
+
+    def table(rows, current, pick):
+        return frames(rows, current, pick)[1].to_markdown()
 
     def verdict(pick, current, rule, holds):
         if pick is None:
@@ -499,6 +562,21 @@ def run_sweep(db_path=None):
                 "config.py is not changed by this run.")
 
     src = path.relative_to(C.ROOT) if path.is_relative_to(C.ROOT) else path
+    pql_verdict = verdict(pql_pick, pql.READY_THRESHOLD, f"precision ≥ {C.TUNE_PQL_MIN_PRECISION:.0%}",
+                          lambda r: r["spring precision"] >= C.TUNE_PQL_MIN_PRECISION)
+    health_verdict = verdict(health_pick, health.RISK_THRESHOLD,
+                             f"false alarms ≤ {C.TUNE_HEALTH_MAX_FALSE_ALARM:.0%}",
+                             lambda r: r["spring false alarms"] <= C.TUNE_HEALTH_MAX_FALSE_ALARM)
+    pql_raw, pql_fmt = frames(pql_rows, pql.READY_THRESHOLD, pql_pick)
+    health_raw, health_fmt = frames(health_rows, health.RISK_THRESHOLD, health_pick)
+    _write_json("threshold_sweep", "Threshold sweep",
+                f"Data: `{src}`. Each threshold is picked on fall Mondays (≤ {TRAIN_CUTOFF}) and reported "
+                "on spring Mondays. On synthetic data this is a dry run; config.py is not changed.", [
+        {"title": f"PQL Ready threshold (fall precision ≥ {C.TUNE_PQL_MIN_PRECISION:.0%}, then most recall)",
+         "note": pql_verdict, "raw": pql_raw, "fmt": pql_fmt},
+        {"title": f"Health At-risk threshold (fall false alarms ≤ {C.TUNE_HEALTH_MAX_FALSE_ALARM:.0%}, then most recall)",
+         "note": health_verdict, "raw": health_raw, "fmt": health_fmt},
+    ])
     _write("threshold_sweep.md", [
         "# Threshold sweep", "",
         f"Data: `{src}`. Each threshold is picked on fall Mondays (≤ {TRAIN_CUTOFF}) and reported "

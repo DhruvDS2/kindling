@@ -1,0 +1,102 @@
+{
+  "id": "pql_lr_comparison",
+  "title": "PQL: rules vs logistic regression",
+  "source": "results/pql_lr_comparison.md",
+  "note": "Trained on Mondays \u2264 2025-12-31 (fall). Tested on Mondays > 2025-12-31 (spring). LR uses the same point-in-time features; weights were not hand-tuned.",
+  "generated_at": "2026-11-24T00:40:59+00:00",
+  "commit": "1235173",
+  "replay": {
+    "start": "2025-09-01",
+    "end": "2026-07-27"
+  },
+  "tables": [
+    {
+      "title": null,
+      "note": null,
+      "index_name": null,
+      "columns": [
+        "Rules (spring only)",
+        "Logistic regression (trained fall)"
+      ],
+      "rows": [
+        {
+          "label": "schools flagged",
+          "values": [
+            23,
+            52
+          ],
+          "display": [
+            "23",
+            "52"
+          ]
+        },
+        {
+          "label": "flagged that converted",
+          "values": [
+            16,
+            21
+          ],
+          "display": [
+            "16",
+            "21"
+          ]
+        },
+        {
+          "label": "precision",
+          "values": [
+            0.6956521739130435,
+            0.40384615384615385
+          ],
+          "display": [
+            "70%",
+            "40%"
+          ]
+        },
+        {
+          "label": "converters caught before converting",
+          "values": [
+            "16 / 23",
+            "21 / 23"
+          ],
+          "display": [
+            "16 / 23",
+            "21 / 23"
+          ]
+        },
+        {
+          "label": "recall",
+          "values": [
+            0.6956521739130435,
+            0.9130434782608695
+          ],
+          "display": [
+            "70%",
+            "91%"
+          ]
+        },
+        {
+          "label": "median lead time (days)",
+          "values": [
+            24.5,
+            46.0
+          ],
+          "display": [
+            "24",
+            "46"
+          ]
+        },
+        {
+          "label": "top 20 on 2026-02-02 that later converted",
+          "values": [
+            "8 / 20",
+            "8 / 20"
+          ],
+          "display": [
+            "8 / 20",
+            "8 / 20"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -96,6 +96,15 @@ REGION_CALENDAR = {
 DISTRICT_DB_PATH = ROOT / "data" / "kindling_districts.duckdb"
 ADMIN_NOISE_DB_PATH = ROOT / "data" / "kindling_admin_noise.duckdb"
 
+# ---------- demo date and replay range ----------
+# The simulated year ends Jul 31, 2026, so the real "today" means nothing to
+# the demo. The API and UI default to this date. Checked 2026-11-23: its
+# 10-school-day window (Jan 20 - Feb 2) is fully after winter break, with
+# paid-school activity back to 96% of the pre-break level, and 17 schools
+# renew 30-60 days out (Apr 1).
+DEMO_AS_OF = date(2026, 2, 2)
+REPLAY_START = date(2025, 9, 1)  # first Monday the backtests replay
+
 N_FREE_SCHOOLS = 120
 N_PAID_SCHOOLS = 80
 PRICE_PER_SEAT = 400  # illustrative, USD per teacher seat per year
@@ -140,6 +149,14 @@ HEALTH_RISK_THRESHOLD = 70       # score below this → "At risk"
 # by the district world: schools starting after Labor Day were scored on an empty
 # window on Sep 1 and flagged at risk.
 HEALTH_MIN_SCHOOL_DAYS = WINDOW_SCHOOL_DAYS
+
+
+def mondays(start: date = REPLAY_START, end: date = END):
+    """Every Monday from start (itself a Monday) to end, inclusive."""
+    d = start
+    while d <= end:
+        yield d
+        d += timedelta(days=7)
 
 
 def all_days():

@@ -9,8 +9,8 @@ A second simulated world (`python -m kindling.simulate --calendars district`): s
 | churners flagged ≥45 days early        | 22 / 22                   | 18 / 22                              | 17 / 22                                     |
 | recall (churners)                      | 100%                      | 82%                                  | 77%                                         |
 | median lead time on churners (days)    | 100                       | 76                                   | 80                                          |
-| false alarms (healthy flagged at risk) | 58                        | 48                                   | 0                                           |
-| false alarm rate                       | 100%                      | 83%                                  | 0%                                          |
+| false alarms (healthy flagged at risk) | 57                        | 11                                   | 0                                           |
+| false alarm rate                       | 98%                       | 19%                                  | 0%                                          |
 
 ## False alarms by calendar
 
@@ -18,11 +18,11 @@ Healthy schools flagged at risk at least once, by the calendar the school actual
 
 | calendar   |   healthy paid schools |   Naive: calendar windows |   School days, one national calendar |   Kindling: school days, district calendars |
 |:-----------|-----------------------:|--------------------------:|-------------------------------------:|--------------------------------------------:|
-| midwest    |                     12 |                        12 |                                   10 |                                           0 |
-| northeast  |                     12 |                        12 |                                   10 |                                           0 |
-| southeast  |                     14 |                        14 |                                   14 |                                           0 |
-| southwest  |                      6 |                         6 |                                    6 |                                           0 |
-| west       |                     14 |                        14 |                                    8 |                                           0 |
+| midwest    |                     12 |                        12 |                                    0 |                                           0 |
+| northeast  |                     12 |                        12 |                                    3 |                                           0 |
+| southeast  |                     14 |                        14 |                                    5 |                                           0 |
+| southwest  |                      6 |                         6 |                                    2 |                                           0 |
+| west       |                     14 |                        13 |                                    1 |                                           0 |
 
 ## PQL (free schools)
 
