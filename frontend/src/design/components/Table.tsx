@@ -372,11 +372,13 @@ export function Table<T>(props: TableProps<T>) {
             const divider = dividerAt.get(key);
             // On or near the screen, before or after this change: measure and slide. Otherwise a
             // constant layoutDependency, so motion skips the row entirely.
-            const moving = nearWindow.all || near.current.has(key) || (i >= nearWindow.lo && i <= nearWindow.hi);
+            // Reduced motion: no row is measured, so every row swaps instantly. (A duration-0 layout
+            // transition still painted one frame of the old offset as a transform.)
+            const moving = !reduce && (nearWindow.all || near.current.has(key) || (i >= nearWindow.lo && i <= nearWindow.hi));
             return (
               <Fragment key={key}>
                 {divider && (
-                  <motion.tr layout="position" layoutDependency={layoutVersion} transition={layoutTransition} className={`k-table__divider k-table__divider--${divider.tone ?? 'accent'}`}>
+                  <motion.tr layout="position" layoutDependency={reduce ? 0 : layoutVersion} transition={layoutTransition} className={`k-table__divider k-table__divider--${divider.tone ?? 'accent'}`}>
                     <td colSpan={colCount}>
                       <div className="k-table__divider-inner">
                         <span className="k-table__divider-label">{divider.label}</span>
