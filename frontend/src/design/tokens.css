@@ -1,0 +1,250 @@
+/*
+ * Kindling design tokens: the single source of truth for DESIGN.md §5.
+ *
+ * Rules (DESIGN.md §7): components use var(--token) only. This is the one file where raw
+ * hex, px and ms values are allowed; `npm run lint:tokens` skips it and checks everything else.
+ *
+ * Theme: light by default; dark when <html data-theme="dark">, or when the OS prefers dark
+ * and no explicit choice was made (<html> without data-theme="light"). Dark is warm, not blue-gray.
+ * Every text pair below is checked for WCAG AA (4.5:1) in DESIGN.md §5.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* ── Color: background layers ───────────────────────────────────────── */
+  --bg-page: #FAF8F5;          /* the warm paper every screen sits on */
+  --bg-subtle: #F4F1EC;        /* sidebar, segmented-control track, pale row actions */
+  --bg-surface: #FFFFFF;       /* drawer panel, inputs */
+  --bg-raised: #FFFFFF;        /* tooltips, toasts, popovers (always with --elevation-popover) */
+  --bg-hover: #F1EDE7;         /* the one travelling hover highlight (8A) */
+  --bg-press: #EBE6DF;         /* press darkens one step */
+  --bg-skeleton: #ECE8E1;      /* skeleton bars */
+
+  /* ── Color: text levels (all AA on page, subtle, surface and hover) ─── */
+  --text-primary: #1C1B19;
+  --text-secondary: #4F4B45;
+  --text-tertiary: #68635C;
+  --text-disabled: #A6A097;    /* inactive controls only: exempt from 1.4.3, never for content */
+
+  /* ── Color: lines ───────────────────────────────────────────────────── */
+  --border-faint: #EFEBE5;     /* table row rules */
+  --border-hairline: #E4E0D9;  /* section rules, panel edges */
+  --border-strong: #CDC6BB;    /* control outlines, meter tracks, ruler ticks */
+
+  /* ── Color: the one accent (ember) ──────────────────────────────────── */
+  --accent: #E2572B;           /* marks only: focus ring, current-week marker, the ready line. Never small text */
+  --accent-strong: #B5421C;    /* AA-safe: accent text and the primary button fill */
+  --accent-strong-press: #9C3714;
+  --accent-subtle: #FBEAE2;    /* one-time "crossed the line" tint, accent wash */
+  --accent-on: #FFFFFF;        /* text on --accent-strong */
+
+  /* ── Color: status (only for status; every status also prints its word) */
+  --status-ready-fg: #1F6A86;
+  --status-ready-bg: #E6F0F3;
+  --status-risk-fg: #B42318;
+  --status-risk-bg: #FBE9E6;
+  --status-healthy-fg: #2A7353;
+  --status-healthy-bg: #E5F1EA;
+  --status-neutral-fg: #68635C;  /* "Not yet", the naive model */
+  --status-neutral-bg: #EFEBE5;
+
+  /* ── Color: data marks (non-text; charts and the week ruler) ────────── */
+  --data-naive: #9A958C;
+  --data-break: #ECE7E0;       /* school breaks */
+  --data-summer: #F3F0EB;      /* summer: shaded more lightly than breaks */
+
+  /* ── Color: focus, scrim, elevation ─────────────────────────────────── */
+  --focus-ring: var(--accent);
+  --scrim: rgba(28, 27, 25, 0.24);  /* warm ink; the list behind stays legible */
+  --elevation-popover: 0 0 0 1px rgba(28, 27, 25, 0.06), 0 8px 24px rgba(28, 27, 25, 0.10);
+
+  /* ── Type ───────────────────────────────────────────────────────────── */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;  /* IDs and hashes only */
+  --numeric: tabular-nums;     /* every metric */
+
+  --text-display: 28px;        /* page titles, stat values: the one display size */
+  --leading-display: 32px;
+  --tracking-display: -0.022em;
+  --text-lg: 16px;             /* section titles, drawer school name in body copy */
+  --leading-lg: 24px;
+  --tracking-lg: -0.011em;
+  --text-md: 14px;             /* body, table cells */
+  --leading-md: 20px;
+  --tracking-md: -0.006em;
+  --text-sm: 13px;             /* secondary lines, nav items, property labels */
+  --leading-sm: 18px;
+  --tracking-sm: -0.003em;
+  --text-label: 12px;          /* table headers, pills, ruler labels, tooltips */
+  --leading-label: 16px;
+  --tracking-label: 0em;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-strong: 600;        /* table header labels only */
+
+  /* ── Space: 8px scale with a 4px half-step ──────────────────────────── */
+  --space-0: 0;
+  --space-0-5: 4px;
+  --space-1: 8px;
+  --space-1-5: 12px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 40px;
+  --space-6: 48px;
+  --space-8: 64px;
+  --space-10: 80px;
+
+  /* ── Size ───────────────────────────────────────────────────────────── */
+  --size-hairline: 1px;
+  --size-focus-ring: 2px;
+  --size-icon-sm: 12px;
+  --size-icon: 16px;
+  --size-pill: 20px;
+  --size-control-sm: 24px;
+  --size-control: 32px;
+  --size-row: 40px;
+  --size-meter: 96px;
+  --size-meter-track: 4px;
+  --size-tick: 12px;
+  --size-ruler: 48px;
+  --size-topbar: 64px;
+  --size-sidebar: 200px;
+  --size-drawer: 640px;
+  --size-tooltip: 280px;
+  --size-toast: 360px;
+  --size-search: 240px;
+  --size-content: 1200px;
+
+  /* ── Radius: small; tables and panels mostly square ─────────────────── */
+  --radius-0: 0;
+  --radius-1: 2px;
+  --radius-2: 4px;             /* controls, pills, pale row actions */
+  --radius-3: 6px;             /* popovers, toasts */
+
+  /* ── Layers ─────────────────────────────────────────────────────────── */
+  --z-sticky: 2;
+  --z-drawer: 40;
+  --z-popover: 50;
+  --z-toast: 60;
+
+  /* ── Motion: exactly DESIGN.md §4 ───────────────────────────────────── */
+  --motion-fast: 120ms;        /* hover, press */
+  --motion-base: 200ms;        /* state changes, number count, close */
+  --motion-slow: 320ms;        /* panels, pages, row reorder */
+  --motion-reveal: 600ms;      /* charts and first-load reveals, once */
+  --ease-enter: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  /* Derived (not new speeds): */
+  --stagger-row: 30ms;         /* first-load row stagger, first 10 rows only (PROPOSAL) */
+  --stagger-cell: 12ms;        /* reading order inside a row on first load */
+  --rise: 4px;                 /* the only travel distance for entrances */
+  --skeleton-pulse: 1600ms;    /* loading loop period; off under reduced motion */
+
+  /* ── Deprecated aliases: the pre-upgrade names. Phase 2 migrates screens off them. */
+  --paper: var(--bg-page);
+  --nav: var(--bg-subtle);
+  --card: var(--bg-surface);
+  --ink: var(--text-primary);
+  --body: var(--text-secondary);
+  --muted: var(--text-tertiary);
+  --line: var(--border-hairline);
+  --row-divider: var(--border-faint);
+  --break-shade: var(--data-break);
+  --ember: var(--accent);
+  --ember-chip-bg: var(--accent-subtle);
+  --ember-chip-text: var(--accent-strong);
+  --risk: var(--status-risk-fg);
+  --risk-chip-bg: var(--status-risk-bg);
+  --steady: var(--status-healthy-fg);
+  --naive: var(--data-naive);
+}
+
+/* Dark: an explicit choice, or the OS preference when no explicit light choice was made.
+   The two blocks are identical on purpose (custom properties can't be shared across selectors). */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-page: #161513;
+  --bg-subtle: #1B1A17;
+  --bg-surface: #1F1D1A;
+  --bg-raised: #282521;
+  --bg-hover: #25221F;
+  --bg-press: #2B2824;
+  --bg-skeleton: #2A2723;
+  --text-primary: #EDEAE4;
+  --text-secondary: #BDB7AD;
+  --text-tertiary: #9C968C;
+  --text-disabled: #625D56;
+  --border-faint: #221F1C;
+  --border-hairline: #2F2C28;
+  --border-strong: #46423B;
+  --accent: #E2572B;
+  --accent-strong: #F07A4F;
+  --accent-strong-press: #DE6A40;
+  --accent-subtle: #33201A;
+  --accent-on: #1A0F0A;
+  --status-ready-fg: #6DB3CF;
+  --status-ready-bg: #17262C;
+  --status-risk-fg: #F2877A;
+  --status-risk-bg: #301B18;
+  --status-healthy-fg: #6BC096;
+  --status-healthy-bg: #172820;
+  --status-neutral-fg: #A9A398;
+  --status-neutral-bg: #25231F;
+  --data-naive: #7A746B;
+  --data-break: #26231F;
+  --data-summer: #1E1C19;
+  --scrim: rgba(0, 0, 0, 0.42);
+  --elevation-popover: 0 0 0 1px #34302B, 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg-page: #161513;
+    --bg-subtle: #1B1A17;
+    --bg-surface: #1F1D1A;
+    --bg-raised: #282521;
+    --bg-hover: #25221F;
+    --bg-press: #2B2824;
+    --bg-skeleton: #2A2723;
+    --text-primary: #EDEAE4;
+    --text-secondary: #BDB7AD;
+    --text-tertiary: #9C968C;
+    --text-disabled: #625D56;
+    --border-faint: #221F1C;
+    --border-hairline: #2F2C28;
+    --border-strong: #46423B;
+    --accent: #E2572B;
+    --accent-strong: #F07A4F;
+    --accent-strong-press: #DE6A40;
+    --accent-subtle: #33201A;
+    --accent-on: #1A0F0A;
+    --status-ready-fg: #6DB3CF;
+    --status-ready-bg: #17262C;
+    --status-risk-fg: #F2877A;
+    --status-risk-bg: #301B18;
+    --status-healthy-fg: #6BC096;
+    --status-healthy-bg: #172820;
+    --status-neutral-fg: #A9A398;
+    --status-neutral-bg: #25231F;
+    --data-naive: #7A746B;
+    --data-break: #26231F;
+    --data-summer: #1E1C19;
+    --scrim: rgba(0, 0, 0, 0.42);
+    --elevation-popover: 0 0 0 1px #34302B, 0 8px 24px rgba(0, 0, 0, 0.45);
+  }
+}
+
+/* Reduced motion means fades only: no travel distance, no stagger, no looping pulse.
+   Durations stay, because opacity fades are still allowed. Components that move things
+   (layout, clip-path, transforms) also check useReducedMotion() and switch to fades. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --stagger-row: 0ms;
+    --stagger-cell: 0ms;
+    --rise: 0px;
+  }
+}

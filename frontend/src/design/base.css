@@ -1,0 +1,71 @@
+/* Base utilities shared by every design component. Tokens only (npm run lint:tokens). */
+
+/* Every metric: tabular figures, so widths never jump while numbers count. */
+.k-num { font-variant-numeric: var(--numeric); font-feature-settings: 'tnum' 1; }
+/* JetBrains Mono: IDs and hashes only. */
+.k-mono { font-family: var(--font-mono); font-size: 0.92em; letter-spacing: var(--tracking-label); }
+
+.k-display {
+  font-size: var(--text-display);
+  line-height: var(--leading-display);
+  letter-spacing: var(--tracking-display);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+  text-wrap: balance;
+}
+.k-text-lg { font-size: var(--text-lg); line-height: var(--leading-lg); letter-spacing: var(--tracking-lg); }
+.k-text-md { font-size: var(--text-md); line-height: var(--leading-md); letter-spacing: var(--tracking-md); }
+.k-text-sm { font-size: var(--text-sm); line-height: var(--leading-sm); letter-spacing: var(--tracking-sm); }
+.k-text-label { font-size: var(--text-label); line-height: var(--leading-label); letter-spacing: var(--tracking-label); }
+.k-primary { color: var(--text-primary); }
+.k-secondary { color: var(--text-secondary); }
+.k-tertiary { color: var(--text-tertiary); }
+.k-medium { font-weight: var(--weight-medium); }
+
+.k-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+.k-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* One focus language: a 2px ember ring, keyboard focus only. */
+.k-focus:focus { outline: none; }
+.k-focus:focus-visible,
+.k-focus[data-force~="focus"] {
+  outline: var(--size-focus-ring) solid var(--focus-ring);
+  outline-offset: var(--size-hairline);
+}
+
+.k-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--size-pill);
+  height: var(--size-pill);
+  padding: 0 var(--space-0-5);
+  border-radius: var(--radius-2);
+  border: var(--size-hairline) solid var(--border-hairline);
+  background: var(--bg-page);
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  font-weight: var(--weight-medium);
+}
+
+.k-icon { display: inline-block; flex: none; width: var(--size-icon); height: var(--size-icon); }
+.k-icon--sm { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+
+@keyframes k-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes k-rise-in {
+  from { opacity: 0; transform: translateY(var(--rise)); }
+  to { opacity: 1; transform: none; }
+}
