@@ -1,5 +1,5 @@
 import { Suspense, useRef, useState } from 'react';
-import { AppShell, PageView, usePageTransition } from './design';
+import { AppShell, PageView, ToastProvider, usePageTransition } from './design';
 import { type Screen, readUrl, writeUrl } from './nav';
 import { ShellNav } from './shell/ShellNav';
 import { ShellTopBar } from './shell/ShellTopBar';
@@ -45,6 +45,8 @@ export default function App() {
   const Automations = screenView('automations');
 
   return (
+    // One toast stack for the whole app (Copy / Send confirmations from any screen or the drawer).
+    <ToastProvider>
     <AppShell nav={<ShellNav active={screen} onSelect={s => navigate(s)} />} topBar={<ShellTopBar screen={screen} />}>
       {/* 6A: only this region cross-fades between screens; the nav and top bar stay still. */}
       <PageView key={screen}>
@@ -61,5 +63,6 @@ export default function App() {
         </ScreenBoundary>
       </PageView>
     </AppShell>
+    </ToastProvider>
   );
 }

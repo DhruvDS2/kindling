@@ -5,7 +5,7 @@ import { useAsOf } from '../asOf';
 import { fmtDay } from '../nav';
 import type { PqlScore } from '../types';
 import {
-  Button, EmptyState, ErrorState, NumberFlow, Skeleton, Table, ToastProvider, Tooltip, TruncatedText,
+  Button, EmptyState, ErrorState, NumberFlow, Skeleton, Table, Tooltip, TruncatedText,
   addWeeks, fmtShort, useToast, type Column, type RowAction, type TableDivider,
 } from '../design';
 
@@ -196,12 +196,8 @@ type Ranked = TopProspect & { rank: number };
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
 
 export default function Prospects() {
-  // Toasts confirm Copy and Send. The app shell doesn't mount a ToastProvider yet; when it does, this one can go.
-  return (
-    <ToastProvider>
-      <ProspectsView />
-    </ToastProvider>
-  );
+  // Toasts confirm Copy and Send; the app root mounts the ToastProvider.
+  return <ProspectsView />;
 }
 
 function ProspectsView() {
