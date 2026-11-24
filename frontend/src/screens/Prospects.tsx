@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchTop10Prospects, notifySlack } from '../api';
 import { useAsOf, usePql } from '../asOf';
+import { fmtDay } from '../nav';
 import type { PqlScore } from '../types';
 import type { TopProspect } from '../api';
 import { SkeletonCard } from '../components/Skeleton';
@@ -24,8 +25,8 @@ function buildEmailDraft(school: PqlScore) {
         `Hi ${first},\n\n` +
         `${school.name} signed up for Kindling a little while back and I wanted to reach out personally. ` +
         `Getting a new platform off the ground is always a lift, and I want to make sure you're not stuck on anything.\n\n` +
-        `We've helped schools like yours get their first teachers up and running in under a week — ` +
-        `I'd love to do the same for you. Even a 15-minute call to walk through the setup together can make a big difference.\n\n` +
+        `We've helped schools like yours get their first teachers up and running quickly, ` +
+        `and I'd love to do the same for you. Even a short call to walk through the setup together can make a big difference.\n\n` +
         `Would that be useful? Happy to work around your calendar.\n\nBest,`,
     };
   }
@@ -112,30 +113,42 @@ function OutreachBar({ school }: { school: PqlScore }) {
 }
 
 function PriorityScore({ score }: { score: number }) {
-  const color = score >= 90 ? 'var(--ember)' : score >= 65 ? 'var(--ink)' : 'var(--muted)';
   return (
-    <div style={{
-      display: 'inline-flex', alignItems: 'center', gap: 4,
-      fontFamily: 'JetBrains Mono, monospace', fontSize: 13, fontWeight: 600, color,
-    }}>
+    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
       {score}
-      <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--muted)' }}>/100</span>
-    </div>
+    </span>
   );
 }
 
-function Top10({ prospects }: { prospects: TopProspect[] }) {
+/** The signals the API scored, each with the points it awarded, highest first. */
+function rankedBy(prospects: TopProspect[]): string {
+  const pts = new Map<string, number>();
+  for (const p of prospects) for (const s of p.signals) {
+    if (s.pts > 0) pts.set(s.label, Math.max(pts.get(s.label) ?? 0, s.pts));
+  }
+  return [...pts].sort((a, b) => b[1] - a[1]).map(([label, n]) => `${label} (${n} pts)`).join(' · ');
+}
+
+function Top10({ prospects, total, asOf }: { prospects: TopProspect[]; total: number; asOf: string }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [signalsOpen, setSignalsOpen] = useState<string | null>(null);
+  const ranked = rankedBy(prospects);
 
   return (
-    <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden', marginBottom: 20 }}>
+    <div data-testid="prospects-top" style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden', marginBottom: 20 }}>
       <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--row-divider)' }}>
-        <div style={{ fontWeight: 600, fontSize: 15 }}>Top 10 · highest priority to pursue</div>
+        <div style={{ fontWeight: 600, fontSize: 15 }}>
+          Top {prospects.length} of {total} prospects · highest priority to pursue
+        </div>
         <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
-          Ranked by: contact on file (40 pts) · district school (25 pts) · reference customers in state (25 pts) · prior activity (10 pts)
+          {ranked ? `Priority adds up the points for: ${ranked}` : 'No prospect has a scoring signal yet.'}
         </div>
       </div>
+      {prospects.length === 0 && (
+        <div style={{ padding: '28px 20px', color: 'var(--muted)', fontSize: 14 }}>
+          No cold or dormant free schools on {fmtDay(asOf)}.
+        </div>
+      )}
 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
@@ -153,9 +166,8 @@ function Top10({ prospects }: { prospects: TopProspect[] }) {
             const sigOpen = signalsOpen === school.school_id;
             const positiveSignals = school.signals.filter(s => s.pts > 0);
             return (
-              <>
+              <Fragment key={school.school_id}>
                 <tr
-                  key={school.school_id}
                   onClick={() => setExpanded(isOpen ? null : school.school_id)}
                   style={{
                     borderBottom: '1px solid var(--row-divider)', cursor: 'pointer',
@@ -170,7 +182,7 @@ function Top10({ prospects }: { prospects: TopProspect[] }) {
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{school.name}</div>
                     <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 1 }}>
-                      {school.district ? 'District' : 'Independent'}
+                      {school.type === 'district' ? 'District' : 'Independent'}
                     </div>
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--body)' }}>{school.state}</td>
@@ -197,17 +209,17 @@ function Top10({ prospects }: { prospects: TopProspect[] }) {
                   </td>
                 </tr>
                 {sigOpen && (
-                  <tr key={`${school.school_id}-signals`}>
+                  <tr>
                     <td colSpan={7} style={{ padding: 0 }}>
                       <div style={{ background: 'var(--nav)', padding: '10px 20px 12px', borderBottom: '1px solid var(--row-divider)' }}>
                         {school.signals.map((sig, j) => (
-                          <div key={j} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '3px 0' }}>
+                          <div key={`${j}-${sig.label}`} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '3px 0' }}>
                             <span style={{
                               fontSize: 11, fontWeight: 600, fontFamily: 'JetBrains Mono, monospace',
                               color: sig.pts > 0 ? 'var(--ember)' : 'var(--muted)',
                               minWidth: 42,
                             }}>
-                              {sig.pts > 0 ? `+${sig.pts}` : `+0`}
+                              {sig.pts > 0 ? `+${sig.pts}` : String(sig.pts)}
                             </span>
                             <span style={{ fontSize: 13, fontWeight: 500, color: sig.pts > 0 ? 'var(--ink)' : 'var(--muted)' }}>
                               {sig.label}
@@ -220,13 +232,13 @@ function Top10({ prospects }: { prospects: TopProspect[] }) {
                   </tr>
                 )}
                 {isOpen && (
-                  <tr key={`${school.school_id}-outreach`}>
+                  <tr>
                     <td colSpan={7} style={{ padding: 0 }}>
                       <OutreachBar school={school} />
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             );
           })}
         </tbody>
@@ -256,9 +268,8 @@ function SchoolGroup({ title, subtitle, schools }: { title: string; subtitle: st
           {schools.map((school) => {
             const isOpen = expanded === school.school_id;
             return (
-              <>
+              <Fragment key={school.school_id}>
                 <tr
-                  key={school.school_id}
                   onClick={() => setExpanded(isOpen ? null : school.school_id)}
                   style={{ borderBottom: '1px solid var(--row-divider)', cursor: 'pointer', background: isOpen ? 'var(--nav)' : 'transparent' }}
                   onMouseEnter={e => { if (!isOpen) e.currentTarget.style.background = 'var(--nav)'; }}
@@ -266,7 +277,7 @@ function SchoolGroup({ title, subtitle, schools }: { title: string; subtitle: st
                 >
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{school.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 1 }}>{school.district ? 'District' : 'Independent'}</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 1 }}>{school.type === 'district' ? 'District' : 'Independent'}</div>
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--body)' }}>{school.state}</td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontFamily: 'JetBrains Mono, monospace', color: 'var(--muted)' }}>{school.pql_score}</td>
@@ -278,13 +289,13 @@ function SchoolGroup({ title, subtitle, schools }: { title: string; subtitle: st
                   </td>
                 </tr>
                 {isOpen && (
-                  <tr key={`${school.school_id}-detail`}>
+                  <tr>
                     <td colSpan={6} style={{ padding: 0 }}>
                       <OutreachBar school={school} />
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             );
           })}
         </tbody>
@@ -293,34 +304,47 @@ function SchoolGroup({ title, subtitle, schools }: { title: string; subtitle: st
   );
 }
 
+// /prospects/top10 treats free schools scoring under this as prospects (api.py, prospects_top10).
+// It only splits the lists below and is never printed.
+const PROSPECT_CUT = 20;
+
 export default function Prospects() {
   const { asOf } = useAsOf();
   const { data: pqlData, isLoading: pqlLoading, error: pqlError } = usePql();
-  const { data: top10Data, isLoading: top10Loading } = useQuery({ queryKey: ['prospects-top10', asOf], queryFn: () => fetchTop10Prospects(asOf) });
+  const top = useQuery({ queryKey: ['prospects-top10', asOf], queryFn: () => fetchTop10Prospects(asOf) });
 
   if (pqlError) return <div style={{ color: 'var(--muted)' }}>Failed to load — is the API running?</div>;
-  if (pqlLoading || top10Loading) return <SkeletonCard rows={8} />;
+  if (pqlLoading || top.isLoading) return <SkeletonCard rows={8} />;
 
   const cold    = (pqlData ?? []).filter(s => s.pql_score === 0);
-  const dormant = (pqlData ?? []).filter(s => s.pql_score > 0 && s.pql_score < 20);
-  const top10   = top10Data?.top10 ?? [];
+  const dormant = (pqlData ?? []).filter(s => s.pql_score > 0 && s.pql_score < PROSPECT_CUT);
+  const top10   = top.data?.top10 ?? [];
   const top10Ids = new Set(top10.map(s => s.school_id));
 
-  // remaining schools not in top 10
+  // remaining schools not in the top list
   const coldRest    = cold.filter(s => !top10Ids.has(s.school_id));
   const dormantRest = dormant.filter(s => !top10Ids.has(s.school_id));
 
   return (
     <>
-      <Top10 prospects={top10} />
+      {top.error ? (
+        <div role="alert" style={{
+          background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 12, padding: 20,
+          marginBottom: 20, color: 'var(--muted)', fontSize: 14,
+        }}>
+          Couldn't load the top prospects for {fmtDay(asOf)}: {(top.error as Error).message}
+        </div>
+      ) : (
+        <Top10 prospects={top10} total={top.data?.total_prospects ?? top10.length} asOf={asOf} />
+      )}
       <SchoolGroup
         title="Cold · no activity"
-        subtitle={`${coldRest.length} more schools — signed up but zero teacher or student activity`}
+        subtitle={`${coldRest.length} more school${coldRest.length === 1 ? '' : 's'}: signed up but zero teacher or student activity`}
         schools={coldRest}
       />
       <SchoolGroup
         title="Dormant · minimal activity"
-        subtitle={`${dormantRest.length} more schools — some activity but not gaining traction`}
+        subtitle={`${dormantRest.length} more school${dormantRest.length === 1 ? '' : 's'}: some activity but not gaining traction`}
         schools={dormantRest}
       />
     </>
