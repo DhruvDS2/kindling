@@ -14,8 +14,7 @@ export default function Backtest() {
   if (isLoading) return <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}><SkeletonCard rows={6} /><SkeletonCard rows={5} /></div>;
 
   const weekly = data?.weeks ?? [];
-  const results = data?.results ?? [];
-  const takeaway = data?.takeaway ?? '';
+  const takeaway = 'The naive model panics every time school goes on break. Counting school days instead of calendar days keeps alerts flat through breaks, so the alerts that do fire are real declines.';
 
   // Find break periods for ReferenceArea
   const breakPeriods: { start: string; end: string }[] = [];
@@ -133,59 +132,6 @@ export default function Backtest() {
         )}
       </div>
 
-      {/* Results table */}
-      <div style={{
-        background: 'var(--card)',
-        border: '1px solid var(--line)',
-        borderRadius: 12,
-        overflow: 'hidden',
-      }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--row-divider)' }}>
-          <span style={{ fontWeight: 600, fontSize: 15 }}>Results</span>
-        </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--row-divider)' }}>
-              {['Metric', 'Naive', 'Kindling'].map(h => (
-                <th key={h} style={{
-                  padding: '10px 20px',
-                  textAlign: 'left',
-                  fontSize: 12,
-                  color: 'var(--muted)',
-                  fontWeight: 500,
-                }}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {results.map((row, i) => (
-              <tr
-                key={i}
-                style={{ borderBottom: i < results.length - 1 ? '1px solid var(--row-divider)' : 'none' }}
-              >
-                <td style={{ padding: '12px 20px', fontSize: 14, color: 'var(--ink)' }}>{row.metric}</td>
-                <td style={{ padding: '12px 20px', fontSize: 14, color: 'var(--muted)', fontFamily: 'JetBrains Mono, monospace' }}>
-                  {row.naive}
-                </td>
-                <td style={{
-                  padding: '12px 20px',
-                  fontSize: 14,
-                  fontFamily: 'JetBrains Mono, monospace',
-                  fontWeight: row.kindling_better ? 700 : 400,
-                  color: row.kindling_better ? 'var(--ink)' : 'var(--muted)',
-                }}>
-                  {row.kindling}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div style={{ padding: '10px 20px', fontSize: 12, color: 'var(--muted)', borderTop: '1px solid var(--row-divider)' }}>
-          Numbers from the real backtest output.
-        </div>
-      </div>
     </div>
   );
 }

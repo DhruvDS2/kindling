@@ -2,14 +2,14 @@ import { useState } from 'react';
 import type { PqlScore, HealthScore } from '../types';
 import ScoreChip from './ScoreChip';
 import { notifySlack } from '../api';
+import { useAsOf } from '../asOf';
+import { fmtDay } from '../nav';
 
 type School = PqlScore | HealthScore;
 
 function isHealth(s: School): s is HealthScore {
   return 'health_score' in s;
 }
-
-const SIGNAL_DATES = ['Jan 26', 'Jan 5', 'Dec 1', 'Aug 18'];
 
 interface Props {
   type: 'pql' | 'health';
@@ -18,6 +18,7 @@ interface Props {
 }
 
 export default function AccountDetail({ type, school, onClose }: Props) {
+  const { asOf } = useAsOf();
   const [slackState, setSlackState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [contacted, setContacted] = useState(false);
   const channel = school.status === 'Ready' ? 'sales' : 'cs';
@@ -26,15 +27,12 @@ export default function AccountDetail({ type, school, onClose }: Props) {
   const hs = isHealth(school) ? school : null;
   const score = type === 'health' && hs ? hs.health_score : (school as PqlScore).pql_score;
 
-  const renewLabel = hs
-    ? new Date(Date.now() + hs.days_to_renewal * 86400000)
-        .toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    : null;
+  const renewLabel = hs ? fmtDay(hs.renewal_date, { month: 'short', day: 'numeric' }) : null;
 
   const handleSlack = async () => {
     setSlackState('sending');
     try {
-      const res = await notifySlack(channel, school.school_id);
+      const res = await notifySlack(channel, school.school_id, asOf);
       setSlackState(res.ok ? 'sent' : 'error');
     } catch {
       setSlackState('error');
@@ -161,7 +159,7 @@ export default function AccountDetail({ type, school, onClose }: Props) {
                     whiteSpace: 'nowrap',
                     minWidth: 48,
                   }}>
-                    {SIGNAL_DATES[i] ?? ''}
+                    {school.reason_details[i] ? `${school.reason_details[i].points}/${school.reason_details[i].max_points}` : ''}
                   </span>
                   <span style={{ fontSize: 13, color: 'var(--body)', lineHeight: 1.5 }}>{reason}</span>
                 </div>

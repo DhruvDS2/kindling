@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchPipelineFunnel, fetchSnapshotSchools, postSnapshot, DEFAULT_AS_OF } from '../api';
+import { fetchPipelineFunnel, fetchSnapshotSchools, postSnapshot } from '../api';
+import { useAsOf } from '../asOf';
 import type { PipelineFunnelData, FunnelSnapshot } from '../types';
 import ScoreChip from '../components/ScoreChip';
 import { SkeletonCard } from '../components/Skeleton';
@@ -64,6 +65,7 @@ function FunnelTile({
 }
 
 export default function Pipeline() {
+  const { asOf } = useAsOf();
   const queryClient = useQueryClient();
   const [snapping, setSnapping] = useState(false);
   const [snapError, setSnapError] = useState<string | null>(null);
@@ -85,7 +87,7 @@ export default function Pipeline() {
     setSnapping(true);
     setSnapError(null);
     try {
-      await postSnapshot(DEFAULT_AS_OF);
+      await postSnapshot(asOf);
       await queryClient.invalidateQueries({ queryKey: ['pipeline'] });
     } catch (e: unknown) {
       setSnapError(e instanceof Error ? e.message : 'Snapshot failed');
@@ -224,14 +226,14 @@ export default function Pipeline() {
                 cursor: snapping ? 'not-allowed' : 'pointer',
               }}
             >
-              {snapping ? 'Taking snapshot…' : `Snapshot today (${DEFAULT_AS_OF})`}
+              {snapping ? 'Taking snapshot…' : `Snapshot ${asOf}`}
             </button>
           </div>
         </div>
 
         {!hasData ? (
           <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>
-            No snapshots yet. Hit "Snapshot today" to take the first one.
+            No snapshots yet. Hit "Snapshot" to record the scores for the date at the top of the page.
           </div>
         ) : (
           <>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchPql, fetchTop10Prospects, notifySlack } from '../api';
+import { fetchTop10Prospects, notifySlack } from '../api';
+import { useAsOf, usePql } from '../asOf';
 import type { PqlScore } from '../types';
 import type { TopProspect } from '../api';
 import { SkeletonCard } from '../components/Skeleton';
@@ -48,13 +49,14 @@ const CHANNELS = [
 ];
 
 function OutreachBar({ school }: { school: PqlScore }) {
+  const { asOf } = useAsOf();
   const [slackState, setSlackState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const draft = buildEmailDraft(school);
 
   async function sendSlack() {
     setSlackState('sending');
     try {
-      const res = await notifySlack('sales', school.school_id);
+      const res = await notifySlack('sales', school.school_id, asOf);
       setSlackState(res.ok ? 'sent' : 'error');
     } catch {
       setSlackState('error');
@@ -292,8 +294,9 @@ function SchoolGroup({ title, subtitle, schools }: { title: string; subtitle: st
 }
 
 export default function Prospects() {
-  const { data: pqlData, isLoading: pqlLoading, error: pqlError } = useQuery<PqlScore[]>({ queryKey: ['pql'], queryFn: () => fetchPql() });
-  const { data: top10Data, isLoading: top10Loading } = useQuery({ queryKey: ['prospects-top10'], queryFn: fetchTop10Prospects });
+  const { asOf } = useAsOf();
+  const { data: pqlData, isLoading: pqlLoading, error: pqlError } = usePql();
+  const { data: top10Data, isLoading: top10Loading } = useQuery({ queryKey: ['prospects-top10', asOf], queryFn: () => fetchTop10Prospects(asOf) });
 
   if (pqlError) return <div style={{ color: 'var(--muted)' }}>Failed to load — is the API running?</div>;
   if (pqlLoading || top10Loading) return <SkeletonCard rows={8} />;

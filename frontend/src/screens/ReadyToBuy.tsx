@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchPql } from '../api';
+import { usePql } from '../asOf';
 import type { PqlScore } from '../types';
 import ScoreChip from '../components/ScoreChip';
 import { SkeletonCard } from '../components/Skeleton';
@@ -9,7 +8,7 @@ import AccountDetail from '../components/AccountDetail';
 interface Props { focusSchoolId?: string | null; }
 
 export default function ReadyToBuy({ focusSchoolId }: Props) {
-  const { data, isLoading, error } = useQuery<PqlScore[]>({ queryKey: ['pql'], queryFn: () => fetchPql() });
+  const { data, isLoading, error } = usePql();
   const [selected, setSelected] = useState<PqlScore | null>(null);
   const [sortAsc, setSortAsc] = useState(false);
 

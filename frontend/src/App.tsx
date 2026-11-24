@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchPql, fetchHealth, fetchAutomationsLog, DEFAULT_AS_OF } from './api';
-import type { PqlScore, HealthScore, AutomationRun } from './types';
+import { fetchAutomationsLog } from './api';
+import type { AutomationRun } from './types';
+import { useAsOf, useStats } from './asOf';
+import { type Screen, readUrl, writeUrl, fmtDay, parseDay } from './nav';
 import MondayBrief from './screens/MondayBrief';
 import ReadyToBuy from './screens/ReadyToBuy';
 import AtRisk from './screens/AtRisk';
@@ -10,28 +12,27 @@ import Automations from './screens/Automations';
 import Pipeline from './screens/Pipeline';
 import Prospects from './screens/Prospects';
 
-type Screen = 'brief' | 'ready' | 'risk' | 'backtest' | 'automations' | 'pipeline' | 'prospects';
-
 export default function App() {
-  const [screen, setScreen] = useState<Screen>('brief');
-  const [focusSchoolId, setFocusSchoolId] = useState<string | null>(null);
+  const { asOf, setAsOf, meta } = useAsOf();
+  const [screen, setScreen] = useState<Screen>(() => readUrl().screen ?? 'brief');
+  const [focusSchoolId, setFocusSchoolId] = useState<string | null>(() => readUrl().school);
 
   function navigate(s: Screen, schoolId?: string) {
     setScreen(s);
     setFocusSchoolId(schoolId ?? null);
+    writeUrl({ screen: s, school: schoolId ?? null });
   }
 
-  const { data: pqlData } = useQuery<PqlScore[]>({ queryKey: ['pql'], queryFn: () => fetchPql() });
-  const { data: healthData } = useQuery<HealthScore[]>({ queryKey: ['health'], queryFn: () => fetchHealth() });
+  const { data: stats } = useStats();
   const { data: automationsData } = useQuery<AutomationRun[]>({ queryKey: ['automations'], queryFn: () => fetchAutomationsLog() });
 
-  const readyCount = pqlData?.filter(s => s.status === 'Ready').length ?? 0;
-  const riskCount = healthData?.filter(s => s.status === 'At risk').length ?? 0;
+  const readyCount = stats?.ready_to_buy ?? 0;
+  const riskCount = stats?.at_risk ?? 0;
 
-  const lastRun = automationsData?.[automationsData.length - 1];
+  const lastRun = [...(automationsData ?? [])].sort((a, b) => a.run_at.localeCompare(b.run_at)).at(-1);
   const syncLabel = lastRun
     ? (() => {
-        const diff = Date.now() - new Date(lastRun.run_at).getTime();
+        const diff = Date.now() - parseDay(lastRun.run_at).getTime();
         const h = Math.round(diff / 3600000);
         return h < 1 ? 'Just now' : `${h}h ago`;
       })()
@@ -94,6 +95,7 @@ export default function App() {
             return (
               <button
                 key={item.id}
+                data-nav={item.id}
                 onClick={() => navigate(item.id)}
                 style={{
                   display: 'flex',
@@ -151,10 +153,10 @@ export default function App() {
         {/* Top bar */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
           <div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>
+            <div data-testid="page-subtitle" style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>
               {screen === 'backtest'
-                ? 'Replayed every Monday, Sep 2025 to Jun 2026 · scorer never sees outcomes'
-                : `Week of ${new Date(DEFAULT_AS_OF + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`}
+                ? `Replayed every Monday, ${fmtDay(meta.replay_start)} to ${fmtDay(meta.replay_end)} · scorer never sees outcomes`
+                : `Scores as of ${fmtDay(asOf, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}${asOf === meta.demo_as_of ? ' (demo date)' : ''}`}
             </div>
             <h1 style={{
               fontFamily: 'Inter',
@@ -168,6 +170,28 @@ export default function App() {
             </h1>
           </div>
 
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+          {/* As-of date: every score on screen is computed for this day of the simulated year */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--muted)' }}>
+            As of
+            <input
+              type="date"
+              data-testid="as-of"
+              value={asOf}
+              min={meta.sim_start}
+              max={meta.sim_end}
+              onChange={e => e.target.value && setAsOf(e.target.value)}
+              style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, padding: '4px 8px',
+                       border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card)', color: 'var(--ink)' }}
+            />
+          </label>
+          {asOf !== meta.demo_as_of && (
+            <button data-testid="reset-as-of" onClick={() => setAsOf(meta.demo_as_of)}
+              style={{ fontSize: 13, padding: '5px 10px', border: '1px solid var(--line)', borderRadius: 8,
+                       background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}>
+              Demo date
+            </button>
+          )}
           {/* Sync pill */}
           <div style={{
             display: 'flex',
@@ -180,7 +204,6 @@ export default function App() {
             color: 'var(--muted)',
             background: 'var(--card)',
             whiteSpace: 'nowrap',
-            marginTop: 4,
           }}>
             <div style={{
               width: 8,
@@ -190,6 +213,7 @@ export default function App() {
               flexShrink: 0,
             }} />
             {syncLabel ? `Synced from n8n · ${syncLabel}` : 'Not yet synced'}
+          </div>
           </div>
         </div>
 

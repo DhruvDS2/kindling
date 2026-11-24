@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchPql, fetchHealth, fetchAutomationsLog } from '../api';
-import type { PqlScore, HealthScore, AutomationRun } from '../types';
+import { fetchAutomationsLog } from '../api';
+import { usePql, useHealth } from '../asOf';
+import { type Screen, parseDay as parseDayLocal } from '../nav';
+import type { AutomationRun } from '../types';
 import ScoreChip from '../components/ScoreChip';
 import { SkeletonCard } from '../components/Skeleton';
 
-type Screen = 'brief' | 'ready' | 'risk' | 'backtest' | 'automations' | 'pipeline';
 
 interface Props {
   onNavigate: (screen: Screen, schoolId?: string) => void;
@@ -77,8 +78,8 @@ function Row({ label, value, sub, dimmed }: { label: string; value: string; sub?
 }
 
 export default function MondayBrief({ onNavigate }: Props) {
-  const { data: pql, isLoading: pqlLoading, error: pqlError } = useQuery<PqlScore[]>({ queryKey: ['pql'], queryFn: () => fetchPql() });
-  const { data: health, isLoading: healthLoading, error: healthError } = useQuery<HealthScore[]>({ queryKey: ['health'], queryFn: () => fetchHealth() });
+  const { data: pql, isLoading: pqlLoading, error: pqlError } = usePql();
+  const { data: health, isLoading: healthLoading, error: healthError } = useHealth();
   const { data: automations, isLoading: autoLoading } = useQuery<AutomationRun[]>({ queryKey: ['automations'], queryFn: () => fetchAutomationsLog() });
   const [nrrOpen, setNrrOpen] = useState(false);
 
@@ -87,7 +88,7 @@ export default function MondayBrief({ onNavigate }: Props) {
   }
 
   const ready = pql?.filter(s => s.status === 'Ready') ?? [];
-  const atRisk = health?.filter(s => s.status === 'At risk' && s.days_to_renewal <= 90) ?? [];
+  const atRisk = health?.filter(s => s.status === 'At risk') ?? [];
 
   // Always show 3 schools in the At risk card — real at-risk first, then lowest health scores to fill
   const atRiskIds = new Set(atRisk.map(s => s.school_id));
@@ -239,7 +240,7 @@ export default function MondayBrief({ onNavigate }: Props) {
                 Schools pulling NRR down
               </div>
               {atRisk.map(s => {
-                const renewDate = new Date(Date.now() + s.days_to_renewal * 86400000);
+                const renewDate = parseDayLocal(s.renewal_date);
                 return (
                   <div
                     key={s.school_id}
@@ -366,7 +367,7 @@ export default function MondayBrief({ onNavigate }: Props) {
           </div>
 
           {top3Risk.map((school, i) => {
-            const renewDate = new Date(Date.now() + school.days_to_renewal * 86400000);
+            const renewDate = parseDayLocal(school.renewal_date);
             const renewLabel = renewDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             return (
               <div

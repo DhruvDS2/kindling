@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchHealth } from '../api';
+import { useHealth } from '../asOf';
+import { fmtDay } from '../nav';
 import type { HealthScore } from '../types';
 import ScoreChip from '../components/ScoreChip';
 import { SkeletonCard } from '../components/Skeleton';
@@ -9,7 +9,7 @@ import AccountDetail from '../components/AccountDetail';
 interface Props { focusSchoolId?: string | null; }
 
 export default function AtRisk({ focusSchoolId }: Props) {
-  const { data, isLoading, error } = useQuery<HealthScore[]>({ queryKey: ['health'], queryFn: () => fetchHealth() });
+  const { data, isLoading, error } = useHealth();
   const [selected, setSelected] = useState<HealthScore | null>(null);
 
   useEffect(() => {
@@ -51,8 +51,7 @@ export default function AtRisk({ focusSchoolId }: Props) {
           </thead>
           <tbody>
             {rows.map((school, i) => {
-              const renewDate = new Date(Date.now() + school.days_to_renewal * 86400000);
-              const renewLabel = renewDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const renewLabel = fmtDay(school.renewal_date, { month: 'short', day: 'numeric' });
               return (
                 <tr
                   key={school.school_id}
