@@ -209,9 +209,28 @@
   - Rule breach during the audit: loading the Streamlit dashboard sent 3 anonymous usage-telemetry POSTs to Streamlit's collector (default `gatherUsageStats`). Nothing else left localhost and no Slack messages were sent. Future runs should disable it.
   - The 30-second pitch in LEARN.md is stale: it says 73% (now 77%), "under my 70% goal" (71% now meets it) and "churn side is next" (built).
 
+- **2026-11-23:** UI run (P2) on branch `ui`. Gate: **PASSED** (`docs/gates/UI-GATE.md`). `main` frozen at `1235173` throughout.
+  - **Phase 0 (blockers, done in order):**
+    - **Date:** the API defaults to the pinned demo date (`DEMO_AS_OF = 2026-02-02`) and returns 400 outside the simulated year. `/meta` gives the UI its dates and thresholds.
+    - **Backtest numbers:** `backtest.py` writes `results/*.json` next to each `.md`, stamped with source file, run time and commit. `/backtest/results` serves them, and the proxy `/backtest` metrics are gone.
+    - **Lifecycle:** health stops scoring at the renewal date, and `status == "At risk"` is the only at-risk definition.
+    - **Build:** `npm run build` is green.
+    - **New endpoints:** `/schools/{id}`, `/history`, `/usage`, `/calendars/{id}`. Reasons come with points, and health ranks them by points lost.
+  - **Correction found by the lifecycle fix:** the scorer had been raising alarms on schools that had already renewed. Removing them:
+    - moves the naive health false alarms from 100% to 98% (57/58);
+    - moves the district world's national-calendar result from **83% to 19%** (11/58). District calendars stay at 0%.
+    - Kindling's own numbers are unchanged. README, LEARN.md and the explainer page are corrected on `ui`; `main` still has 83% and 100% until `ui` is merged.
+  - **Lanes**, 3 in parallel worktrees, each merged into `ui` with no conflicts:
+    - A: sales view, CS view, Monday brief.
+    - B: school detail drawer, with usage over time, both windows, score history, and reasons with points.
+    - C: backtest view from the results files, plus Prospects, Pipeline and Automations fixes.
+  - **Tests:** 33, up from 12. The truth-table scan now covers `api.py`, `report.py` and `dashboard/app.py`; the future-data test covers all 3 window modes; and there's a test that flags only count before conversion.
+  - **New dependency:** `playwright` (frontend dev only). Reason: the gate needs screenshots of every screen. `npm run screenshots` uses the installed Chrome and fails on console errors or failed API calls.
+  - **Streamlit:** a read-only backup now, with no Slack path and no webhook secrets.
+
 ## What's left
-- Answer the 7 questions in `docs/gates/PRE-UI-READINESS.md` §7, then run the UI changes it scopes (blockers in §2 first)
-- Update LEARN.md's pitch and Q&A to the current numbers
+- Review the `ui` branch (`docs/gates/UI-GATE.md`) and decide whether to merge it into `main`
+- Re-import `n8n/kindling_weekly.json` into n8n
 - 2-minute demo video (deferred until the UI changes land)
 - On real data: tune thresholds with `backtest.py sweep --db`, source real district calendars, and rerun the admin rule
 

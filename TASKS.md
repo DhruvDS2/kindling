@@ -47,7 +47,9 @@ One task at a time. Each one ends with something you can run. Update PROGRESS.md
 - [x] 5.5 Pre-UI readiness audit (`docs/PRE-UI-AUDIT-RUN.md` → `docs/gates/PRE-UI-READINESS.md`): READY WITH GAPS
 
 ## Phase 6: UI changes
-- [ ] Answer the 7 questions in `docs/gates/PRE-UI-READINESS.md` §7
-- [ ] Fix the 4 blockers in §2: date contract, backtest numbers from backtest.py, one renewal/"at risk" rule, green build
-- [ ] Freeze the data contract in §4 (Phase 0 of the UI run)
-- [ ] Build the four views against it, plus the §3 items alongside
+- [x] Answer the 7 questions in `docs/gates/PRE-UI-READINESS.md` §7 (defaults accepted; demo date 2026-02-02 checked; threshold documented)
+- [x] Fix the 4 blockers in §2: date contract, backtest numbers from backtest.py, one renewal/"at risk" rule, green build
+- [x] Freeze the data contract in §4 (Phase 0 of the UI run)
+- [x] Build the four views against it, plus the §3 items alongside (gate: `docs/gates/UI-GATE.md`, PASSED)
+- [ ] Dhruv: review `ui`, decide whether to merge it into `main`
+- [ ] Re-import `n8n/kindling_weekly.json` into n8n (it no longer sends today's date)
