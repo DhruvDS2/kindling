@@ -1,31 +1,42 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchAutomationsLog } from '../api';
-import { usePql, useHealth } from '../asOf';
-import { type Screen, parseDay as parseDayLocal } from '../nav';
-import type { AutomationRun } from '../types';
-import ScoreChip from '../components/ScoreChip';
-import { SkeletonCard } from '../components/Skeleton';
-
+import { useAsOf, useHealth, usePql, useStats } from '../asOf';
+import { type Screen, fmtDay } from '../nav';
+import type { AutomationRun, HealthScore, PqlScore } from '../types';
+import ScoreChip, { ReasonList, topReasons } from '../components/ScoreChip';
+import { SkeletonBlock, SkeletonCard } from '../components/Skeleton';
 
 interface Props {
   onNavigate: (screen: Screen, schoolId?: string) => void;
 }
 
-function StatTile({
-  label, value, subline, valueColor, onClick, hint,
-}: {
+// Layout only (how many rows fit a card), never data: counts on screen come from the API.
+const CARD_ROWS = 5;
+const WATCH_MIN_ROWS = 3;
+
+const MONO = 'JetBrains Mono, monospace';
+const usd = (n: number) => `$${n.toLocaleString('en-US')}`;
+const pct = (x: number) => x.toLocaleString('en-US', { style: 'percent', maximumFractionDigits: 1 });
+const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
+
+function StatTile({ label, value, subline, valueColor, onClick, hint, testId }: {
   label: string;
-  value: string | number;
-  subline: string;
+  value: ReactNode;
+  subline: ReactNode;
   valueColor?: string;
   onClick?: () => void;
   hint?: string;
+  testId: string;
 }) {
   const [hovered, setHovered] = useState(false);
   return (
     <div
+      data-testid={testId}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
+      onKeyDown={e => { if (onClick && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onClick(); } }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -34,458 +45,296 @@ function StatTile({
         borderRadius: 12,
         padding: 20,
         flex: 1,
+        minWidth: 0,
         cursor: onClick ? 'pointer' : 'default',
         transition: 'background 0.1s',
       }}
     >
-      <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+      <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8, display: 'flex', justifyContent: 'space-between', gap: 8 }}>
         <span>{label}</span>
         {onClick && (
-          <span style={{ opacity: hovered ? 1 : 0, transition: 'opacity 0.1s', fontSize: 12 }}>
+          <span style={{ opacity: hovered ? 1 : 0, transition: 'opacity 0.1s', fontSize: 12, whiteSpace: 'nowrap' }}>
             {hint ?? 'View all →'}
           </span>
         )}
       </div>
-      <div style={{
-        fontSize: 32,
-        fontWeight: 700,
-        fontFamily: 'JetBrains Mono, monospace',
-        color: valueColor ?? 'var(--ink)',
-        lineHeight: 1.1,
-        marginBottom: 6,
-      }}>
+      <div style={{ fontSize: 32, fontWeight: 700, fontFamily: MONO, color: valueColor ?? 'var(--ink)', lineHeight: 1.1, marginBottom: 8 }}>
         {value}
       </div>
-      <div style={{ fontSize: 13, color: 'var(--muted)' }}>{subline}</div>
+      <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.45 }}>{subline}</div>
     </div>
   );
 }
 
-function Row({ label, value, sub, dimmed }: { label: string; value: string; sub?: string; dimmed?: boolean }) {
+function Card({ title, action, children }: { title: ReactNode; action?: ReactNode; children: ReactNode }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '6px 0' }}>
-      <span style={{ fontSize: 13, color: dimmed ? 'var(--muted)' : 'var(--body)' }}>{label}</span>
-      <span style={{
-        fontSize: 13,
-        fontFamily: 'JetBrains Mono, monospace',
-        color: dimmed ? 'var(--muted)' : 'var(--ink)',
-        fontWeight: dimmed ? 400 : 500,
-      }}>
-        {value}{sub && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>{sub}</span>}
-      </span>
+    <div style={{ flex: 1, minWidth: 0, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 12, padding: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 6 }}>
+        <span style={{ fontWeight: 600, fontSize: 15 }}>{title}</span>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function LinkButton({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <button onClick={onClick}
+      style={{ background: 'none', border: 'none', color: 'var(--ember)', cursor: 'pointer', fontSize: 13, fontWeight: 500, padding: 0, whiteSpace: 'nowrap' }}>
+      {children}
+    </button>
+  );
+}
+
+/** One school in a brief card: name, a context line, its chip, and its top reason with points. */
+function BriefRow({ name, sub, chip, reasonOf, onClick, first }: {
+  name: string;
+  sub: ReactNode;
+  chip: ReactNode;
+  reasonOf: PqlScore | HealthScore;
+  onClick: () => void;
+  first: boolean;
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+      onMouseEnter={e => (e.currentTarget.style.background = 'var(--nav)')}
+      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+      style={{
+        padding: '10px 8px', margin: '0 -8px', borderRadius: 6, cursor: 'pointer', transition: 'background 0.1s',
+        borderTop: first ? 'none' : '1px solid var(--row-divider)',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{name}</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{sub}</div>
+        </div>
+        {chip}
+      </div>
+      <div style={{ marginTop: 6 }}>
+        <ReasonList reasons={topReasons(reasonOf).slice(0, 1)} wrap={false} />
+      </div>
+    </div>
+  );
+}
+
+const kindOf = (s: { type: 'district' | 'independent' }) => (s.type === 'district' ? 'District' : 'Independent');
+
+function GroupLabel({ children }: { children: ReactNode }) {
+  return (
+    <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '12px 0 2px' }}>
+      {children}
     </div>
   );
 }
 
 export default function MondayBrief({ onNavigate }: Props) {
-  const { data: pql, isLoading: pqlLoading, error: pqlError } = usePql();
-  const { data: health, isLoading: healthLoading, error: healthError } = useHealth();
+  const { asOf } = useAsOf();
+  const { data: stats, isLoading: statsLoading, error: statsError } = useStats();
+  const { data: pql, error: pqlError } = usePql();
+  const { data: health, error: healthError } = useHealth();
   const { data: automations, isLoading: autoLoading } = useQuery<AutomationRun[]>({ queryKey: ['automations'], queryFn: () => fetchAutomationsLog() });
   const [nrrOpen, setNrrOpen] = useState(false);
 
-  if (pqlError || healthError) {
-    return <div style={{ color: 'var(--muted)', fontSize: 14 }}>Failed to load — is the API running?</div>;
+  if (statsError) {
+    return <div style={{ color: 'var(--muted)', fontSize: 14 }}>Couldn't load the brief: {(statsError as Error).message}</div>;
   }
-
-  const ready = pql?.filter(s => s.status === 'Ready') ?? [];
-  const atRisk = health?.filter(s => s.status === 'At risk') ?? [];
-
-  // Always show 3 schools in the At risk card — real at-risk first, then lowest health scores to fill
-  const atRiskIds = new Set(atRisk.map(s => s.school_id));
-  const watchFill = [...(health ?? [])]
-    .filter(s => !atRiskIds.has(s.school_id))
-    .sort((a, b) => a.health_score - b.health_score)
-    .slice(0, Math.max(0, 3 - atRisk.length));
-  const top3Risk = [
-    ...atRisk.slice(0, 3).map(s => ({ ...s, _watch: false })),
-    ...watchFill.map(s => ({ ...s, _watch: true })),
-  ];
-
-  // Real NRR calculation from actual data
-  const totalARR = health?.reduce((sum, s) => sum + s.arr, 0) ?? 0;
-  const atRiskARR = atRisk.reduce((sum, s) => sum + s.arr, 0);
-  const retainedARR = totalARR - atRiskARR;
-  const nrr = totalARR > 0 ? Math.round((retainedARR / totalARR) * 100) : 100;
-  // Upside: if all Ready-to-buy schools convert at the avg ARR per existing customer
-  const avgARR = health && health.length > 0 ? Math.round(totalARR / health.length) : 0;
-  const upsideARR = ready.length * avgARR;
-  const nrrWithUpside = totalARR > 0 ? Math.round(((retainedARR + upsideARR) / totalARR) * 100) : 100;
-
-  const nrrSubline = atRisk.length === 0
-    ? 'No churn risk in next 90 days'
-    : `${atRisk.length} school${atRisk.length !== 1 ? 's' : ''} likely to churn`;
-
-  const top5Ready = ready.slice(0, 5);
-  const lastRun = automations?.[0];
-
-  const isLoading = pqlLoading || healthLoading;
-
-  if (isLoading) {
+  if (statsLoading || !stats) {
     return (
-      <div>
-        <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
-          {[0, 1, 2, 3].map(i => <SkeletonCard key={i} rows={3} />)}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ display: 'flex', gap: 16 }}>
+          {[0, 1, 2, 3].map(i => <div key={i} style={{ flex: 1 }}><SkeletonCard rows={3} /></div>)}
         </div>
         <SkeletonCard rows={6} />
       </div>
     );
   }
 
+  const ready = (pql ?? []).filter(s => s.status === 'Ready');
+  // The API's order is lowest health first; the watch list follows the API's status, never a score cut of its own.
+  const byHealth = [...(health ?? [])].sort((a, b) => a.health_score - b.health_score);
+  const atRisk = byHealth.filter(s => s.status === 'At risk');
+  const lowestHealthy = atRisk.length < WATCH_MIN_ROWS
+    ? byHealth.filter(s => s.status !== 'At risk').slice(0, WATCH_MIN_ROWS - atRisk.length)
+    : [];
+  // The run log isn't sorted: the latest run is the greatest run_at (ISO strings sort as dates).
+  const lastRun = (automations ?? []).reduce<AutomationRun | null>(
+    (latest, r) => (!latest || r.run_at > latest.run_at ? r : latest), null);
+  const csAlerts = lastRun ? (lastRun.health_alerts ?? lastRun.cs_alerts) : undefined;
+
+  const healthRow = (s: HealthScore, i: number) => (
+    <BriefRow
+      key={s.school_id}
+      first={i === 0}
+      name={s.name}
+      sub={<>{kindOf(s)} · renews {fmtDay(s.renewal_date)}, in <span style={{ fontFamily: MONO }}>{s.days_to_renewal}</span> {s.days_to_renewal === 1 ? 'day' : 'days'} · <span style={{ fontFamily: MONO }}>{usd(s.arr)}</span> ARR</>}
+      chip={<ScoreChip score={s.health_score} type="health" status={s.status} />}
+      reasonOf={s}
+      onClick={() => onNavigate('risk', s.school_id)}
+    />
+  );
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Stat tiles */}
+      {/* Stat tiles: every number and definition here comes from GET /stats */}
       <div style={{ display: 'flex', gap: 16 }}>
         <StatTile
+          testId="tile-ready"
           label="Ready to buy"
-          value={ready.length}
-          subline={`${ready.length} school${ready.length !== 1 ? 's' : ''} scored ≥ 60 PQL`}
+          value={stats.ready_to_buy}
+          subline={stats.definitions.ready}
           valueColor="var(--ember)"
           onClick={() => onNavigate('ready')}
         />
         <StatTile
+          testId="tile-at-risk"
           label="At risk"
-          value={atRisk.length}
-          subline="Renewing in the next 90 days"
-          valueColor={atRisk.length > 0 ? 'var(--risk)' : 'var(--ink)'}
+          value={stats.at_risk}
+          subline={stats.definitions.at_risk}
+          valueColor={stats.at_risk > 0 ? 'var(--risk)' : 'var(--ink)'}
           onClick={() => onNavigate('risk')}
         />
         <StatTile
+          testId="tile-arr-at-risk"
           label="ARR at risk"
-          value={`$${atRiskARR.toLocaleString()}`}
-          subline={atRisk.length === 0 ? 'No schools at risk of churning' : `Across ${atRisk.length} school${atRisk.length !== 1 ? 's' : ''} renewing soon`}
-          valueColor={atRiskARR > 0 ? 'var(--ember)' : 'var(--ink)'}
+          value={usd(stats.arr_at_risk)}
+          subline={stats.arr_at_risk_school_count > 0
+            ? <>Across {plural(stats.arr_at_risk_school_count, 'at-risk school')} · of {usd(stats.total_arr)} paid ARR</>
+            : <>No paid school is at risk · {usd(stats.total_arr)} paid ARR</>}
+          valueColor={stats.arr_at_risk > 0 ? 'var(--risk)' : 'var(--ink)'}
           onClick={() => onNavigate('risk')}
         />
         <StatTile
+          testId="tile-nrr"
           label="Projected NRR"
-          value={`${nrr}%`}
-          subline={nrrSubline}
-          valueColor={nrr >= 100 ? 'var(--steady)' : 'var(--risk)'}
+          value={pct(stats.projected_nrr)}
+          subline={<>{usd(stats.arr_churned_to_date)} churned to date · {usd(stats.arr_at_risk)} at risk</>}
           onClick={() => setNrrOpen(o => !o)}
-          hint={nrrOpen ? 'Hide breakdown ↑' : 'See breakdown ↓'}
+          hint={nrrOpen ? 'Hide how ↑' : 'How it’s computed ↓'}
         />
       </div>
 
-      {/* NRR breakdown panel */}
       {nrrOpen && (
-        <div style={{
-          background: 'var(--card)',
-          border: '1px solid var(--line)',
-          borderRadius: 12,
-          padding: '20px 24px',
-        }}>
-          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16 }}>
-            Projected NRR · how we got to {nrr}%
+        <div data-testid="nrr-breakdown" style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 12, padding: '18px 24px' }}>
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>Projected NRR · {pct(stats.projected_nrr)}</div>
+          <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5 }}>{stats.definitions.projected_nrr}</div>
+          <div style={{ maxWidth: 520, borderTop: '1px solid var(--row-divider)' }}>
+            {[
+              ['Total paid ARR', usd(stats.total_arr)],
+              [`ARR already churned by ${fmtDay(asOf)}`, `− ${usd(stats.arr_churned_to_date)}`],
+              [`ARR at risk (${plural(stats.arr_at_risk_school_count, 'school')})`, `− ${usd(stats.arr_at_risk)}`],
+              ['Projected NRR', pct(stats.projected_nrr)],
+            ].map(([label, value], i, all) => (
+              <div key={label} style={{
+                display: 'flex', justifyContent: 'space-between', padding: '7px 0', fontSize: 13,
+                borderTop: i === all.length - 1 ? '1px solid var(--line)' : 'none',
+                fontWeight: i === all.length - 1 ? 600 : 400,
+              }}>
+                <span style={{ color: 'var(--body)' }}>{label}</span>
+                <span style={{ fontFamily: MONO, color: 'var(--ink)' }}>{value}</span>
+              </div>
+            ))}
           </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 48px' }}>
-            {/* Left: the math */}
-            <div>
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Retention math
-              </div>
-              <div style={{ borderTop: '1px solid var(--row-divider)' }}>
-                <Row
-                  label={`Starting ARR (${health?.length ?? 0} paying schools)`}
-                  value={`$${totalARR.toLocaleString()}`}
-                />
-                <Row
-                  label={`Projected churn (${atRisk.length} at-risk in 90 days)`}
-                  value={atRiskARR > 0 ? `-$${atRiskARR.toLocaleString()}` : '-$0'}
-                  dimmed={atRiskARR === 0}
-                />
-                <div style={{ borderTop: '1px solid var(--row-divider)', marginTop: 4 }} />
-                <Row
-                  label="Projected retained ARR"
-                  value={`$${retainedARR.toLocaleString()}`}
-                />
-                <Row
-                  label={`NRR = $${retainedARR.toLocaleString()} / $${totalARR.toLocaleString()}`}
-                  value={`${nrr}%`}
-                />
-              </div>
-            </div>
-
-            {/* Right: upside */}
-            <div>
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Potential upside (if Ready schools convert)
-              </div>
-              <div style={{ borderTop: '1px solid var(--row-divider)' }}>
-                <Row
-                  label={`Avg ARR per paying school`}
-                  value={`$${avgARR.toLocaleString()}`}
-                  dimmed
-                />
-                <Row
-                  label={`${ready.length} Ready-to-buy schools × $${avgARR.toLocaleString()}`}
-                  value={`+$${upsideARR.toLocaleString()}`}
-                />
-                <div style={{ borderTop: '1px solid var(--row-divider)', marginTop: 4 }} />
-                <Row
-                  label="NRR with full conversion"
-                  value={`${nrrWithUpside}%`}
-                />
-                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10, lineHeight: 1.5 }}>
-                  This assumes all {ready.length} Ready schools convert at the average contract value.
-                  Real conversion will be lower — but this is the ceiling.
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {atRisk.length > 0 && (
-            <div style={{ marginTop: 20, borderTop: '1px solid var(--row-divider)', paddingTop: 16 }}>
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Schools pulling NRR down
-              </div>
-              {atRisk.map(s => {
-                const renewDate = parseDayLocal(s.renewal_date);
-                return (
-                  <div
-                    key={s.school_id}
-                    onClick={() => onNavigate('risk', s.school_id)}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--nav)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                    style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', borderRadius: 6, cursor: 'pointer' }}
-                  >
-                    <span style={{ fontSize: 13, fontWeight: 500 }}>{s.name}</span>
-                    <span style={{ fontSize: 13, color: 'var(--risk)', fontFamily: 'JetBrains Mono, monospace' }}>
-                      -${s.arr.toLocaleString()} · renews {renewDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
       )}
 
-      {/* Two side-by-side cards */}
-      <div style={{ display: 'flex', gap: 16 }}>
-        {/* Ready to buy top 5 */}
-        <div style={{
-          flex: 1,
-          background: 'var(--card)',
-          border: '1px solid var(--line)',
-          borderRadius: 12,
-          padding: 20,
-          overflow: 'hidden',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <span style={{ fontWeight: 600, fontSize: 15 }}>Ready to buy · top 5</span>
-            <button
-              onClick={() => onNavigate('ready')}
-              style={{ background: 'none', border: 'none', color: 'var(--ember)', cursor: 'pointer', fontSize: 13, fontWeight: 500, padding: 0 }}
-            >
-              View all {ready.length}
-            </button>
-          </div>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 130px 1fr',
-            gap: 8,
-            paddingBottom: 8,
-            borderBottom: '1px solid var(--row-divider)',
-            fontSize: 12,
-            color: 'var(--muted)',
-          }}>
-            <span>School</span>
-            <span>PQL</span>
-            <span>Top reason</span>
-          </div>
-
-          {top5Ready.map((school, i) => (
-            <div
-              key={school.school_id}
-              onClick={() => onNavigate('ready', school.school_id)}
-              onMouseEnter={e => (e.currentTarget.style.background = 'var(--nav)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 130px 1fr',
-                gap: 8,
-                padding: '10px 8px',
-                borderBottom: i < top5Ready.length - 1 ? '1px solid var(--row-divider)' : 'none',
-                alignItems: 'center',
-                cursor: 'pointer',
-                borderRadius: 6,
-                transition: 'background 0.1s',
-                margin: '0 -8px',
-              }}
-            >
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{school.name}</div>
-                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 1 }}>
-                  {school.district ? 'District' : 'Independent'} · {school.state}
-                </div>
-              </div>
-              <ScoreChip score={school.pql_score} type="pql" status={school.status} />
-              <div style={{ fontSize: 13, color: 'var(--body)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {school.reasons[0]}
-              </div>
+      {/* Ready to buy + watch list */}
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+        <Card
+          title="Ready to buy"
+          action={<LinkButton onClick={() => onNavigate('ready')}>{stats.ready_to_buy > 0 ? `View all ${stats.ready_to_buy}` : 'View ranking'}</LinkButton>}
+        >
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>Highest PQL first · {stats.definitions.ready}</div>
+          {pqlError ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Couldn't load PQL scores: {(pqlError as Error).message}</div>
+          ) : !pql ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 8 }}>
+              {[0, 1, 2].map(i => <SkeletonBlock key={i} height={36} />)}
             </div>
-          ))}
-        </div>
+          ) : ready.length === 0 ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)', padding: '10px 0' }}>No school is Ready on {fmtDay(asOf)}.</div>
+          ) : (
+            ready.slice(0, CARD_ROWS).map((s, i) => (
+              <BriefRow
+                key={s.school_id}
+                first={i === 0}
+                name={s.name}
+                sub={<>{kindOf(s)} · {s.city}, {s.state}{s.ready_rule === 'admin' ? ' · Ready by admin rule' : ''}</>}
+                chip={<ScoreChip score={s.pql_score} type="pql" status={s.status} />}
+                reasonOf={s}
+                onClick={() => onNavigate('ready', s.school_id)}
+              />
+            ))
+          )}
+        </Card>
 
-        {/* At risk */}
-        <div style={{
-          flex: 1,
-          background: 'var(--card)',
-          border: '1px solid var(--line)',
-          borderRadius: 12,
-          padding: 20,
-          overflow: 'hidden',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <span style={{ fontWeight: 600, fontSize: 15 }}>
-              {atRisk.length > 0 ? 'At risk · next 90 days' : 'Watch list · lowest health scores'}
-            </span>
-            <button
-              onClick={() => onNavigate('risk')}
-              style={{ background: 'none', border: 'none', color: 'var(--ember)', cursor: 'pointer', fontSize: 13, fontWeight: 500, padding: 0 }}
-            >
-              View all
-            </button>
-          </div>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 150px 80px 70px 1fr',
-            gap: 8,
-            paddingBottom: 8,
-            borderBottom: '1px solid var(--row-divider)',
-            fontSize: 12,
-            color: 'var(--muted)',
-          }}>
-            <span>School</span>
-            <span>Health</span>
-            <span>Renews</span>
-            <span>ARR</span>
-            <span>Top reason</span>
-          </div>
-
-          {top3Risk.map((school, i) => {
-            const renewDate = parseDayLocal(school.renewal_date);
-            const renewLabel = renewDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            return (
-              <div
-                key={school.school_id}
-                onClick={() => onNavigate('risk', school.school_id)}
-                onMouseEnter={e => (e.currentTarget.style.background = 'var(--nav)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 150px 80px 70px 1fr',
-                  gap: 8,
-                  padding: '10px 8px',
-                  borderBottom: i < top3Risk.length - 1 ? '1px solid var(--row-divider)' : 'none',
-                  alignItems: 'center',
-                  cursor: 'pointer',
-                  borderRadius: 6,
-                  transition: 'background 0.1s',
-                  margin: '0 -8px',
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{school.name}</div>
-                  {school._watch && (
-                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Watch · low health</div>
-                  )}
+        <Card
+          title="Watch list"
+          action={<LinkButton onClick={() => onNavigate('risk')}>{stats.at_risk > 0 ? `View all ${stats.at_risk} at risk` : 'View all paid schools'}</LinkButton>}
+        >
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>Lowest health first · {stats.definitions.at_risk}</div>
+          {healthError ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Couldn't load health scores: {(healthError as Error).message}</div>
+          ) : !health ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 8 }}>
+              {[0, 1, 2].map(i => <SkeletonBlock key={i} height={36} />)}
+            </div>
+          ) : (
+            <>
+              {atRisk.length === 0 ? (
+                <div data-testid="watch-none" style={{ fontSize: 13, color: 'var(--muted)', padding: '10px 0' }}>
+                  No paid school is at risk on {fmtDay(asOf)}.
                 </div>
-                <ScoreChip score={school.health_score} type="health" status={school.status} />
-                <div style={{ fontSize: 13, color: 'var(--body)', fontFamily: 'JetBrains Mono, monospace' }}>{renewLabel}</div>
-                <div style={{ fontSize: 13, color: 'var(--body)', fontFamily: 'JetBrains Mono, monospace' }}>${(school.arr / 1000).toFixed(0)}K</div>
-                <div style={{ fontSize: 13, color: 'var(--body)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {school.reasons[0]}
+              ) : (
+                atRisk.slice(0, CARD_ROWS).map(healthRow)
+              )}
+              {lowestHealthy.length > 0 && (
+                <div data-testid="watch-lowest-healthy">
+                  <GroupLabel>Lowest health · not at risk</GroupLabel>
+                  {lowestHealthy.map(healthRow)}
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              )}
+              {byHealth.length === 0 && (
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>No paid school has a health score and a renewal still ahead on this date.</div>
+              )}
+            </>
+          )}
+        </Card>
       </div>
 
-      {/* Cold leads card */}
-      {(() => {
-        const cold = (pql ?? []).filter(s => s.pql_score === 0).slice(0, 3);
-        const dormant = (pql ?? []).filter(s => s.pql_score > 0 && s.pql_score < 20).slice(0, 3 - cold.length);
-        const prospects = [...cold, ...dormant].slice(0, 3);
-        return (
-          <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 12, padding: 20 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div>
-                <span style={{ fontWeight: 600, fontSize: 15 }}>Prospects · needs activation</span>
-                <span style={{ fontSize: 13, color: 'var(--muted)', marginLeft: 10 }}>
-                  {(pql ?? []).filter(s => s.pql_score < 20).length} schools with no meaningful activity
-                </span>
-              </div>
-              <button
-                onClick={() => onNavigate('prospects')}
-                style={{ background: 'none', border: 'none', color: 'var(--ember)', cursor: 'pointer', fontSize: 13, fontWeight: 500, padding: 0 }}
-              >
-                View all →
-              </button>
-            </div>
-            <div style={{ display: 'flex', gap: 12 }}>
-              {prospects.map(school => (
-                <div
-                  key={school.school_id}
-                  onClick={() => onNavigate('prospects')}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--nav)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  style={{
-                    flex: 1, border: '1px solid var(--line)', borderRadius: 8, padding: '12px 14px',
-                    cursor: 'pointer', transition: 'background 0.1s',
-                  }}
-                >
-                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginBottom: 2 }}>{school.name}</div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                    {school.state} · PQL {school.pql_score} · {school.active_teachers} teachers active
-                  </div>
-                  {school.contact_name && (
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                      {school.contact_name} · {school.contact_title}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Last automation run strip */}
+      {/* Last automation run */}
       <div style={{
-        background: 'var(--card)',
-        border: '1px solid var(--line)',
-        borderRadius: 12,
-        padding: '16px 20px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 24,
+        background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 12, padding: '16px 20px',
+        display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap',
       }}>
         <span style={{ fontWeight: 600, fontSize: 14, flexShrink: 0 }}>Last automation run</span>
         {autoLoading ? (
-          <span style={{ color: 'var(--muted)', fontSize: 13 }}>Loading…</span>
+          <span style={{ color: 'var(--muted)', fontSize: 13 }}>Reading the run log…</span>
         ) : lastRun ? (
           <>
-            <span style={{ fontSize: 13, color: 'var(--muted)' }}>
-              {new Date(lastRun.run_at).toLocaleDateString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' })} · {lastRun.trigger}
+            <span data-testid="last-run-date" style={{ fontSize: 13, color: 'var(--body)', fontFamily: MONO }}>
+              {fmtDay(lastRun.run_at)}{lastRun.trigger ? ` · ${lastRun.trigger}` : ''}
             </span>
-            <span style={{ fontSize: 13, color: 'var(--muted)', fontFamily: 'JetBrains Mono, monospace' }}>
-              {lastRun.pql_alerts + (lastRun.cs_alerts ?? lastRun.health_alerts ?? 0)} Slack alerts
-            </span>
-            <span style={{ fontSize: 13, color: 'var(--muted)', fontFamily: 'JetBrains Mono, monospace' }}>
-              {lastRun.email_drafts} email drafts
-            </span>
+            <span style={{ fontSize: 13, color: 'var(--muted)', fontFamily: MONO }}>{plural(lastRun.pql_alerts, 'PQL alert')}</span>
+            {csAlerts !== undefined && (
+              <span style={{ fontSize: 13, color: 'var(--muted)', fontFamily: MONO }}>{plural(csAlerts, 'CS alert')}</span>
+            )}
+            <span style={{ fontSize: 13, color: 'var(--muted)', fontFamily: MONO }}>{plural(lastRun.email_drafts, 'email draft')}</span>
             <span style={{ fontSize: 13, fontWeight: 600, color: lastRun.status === 'succeeded' ? 'var(--steady)' : 'var(--risk)' }}>
               {lastRun.status === 'succeeded' ? 'Succeeded' : 'Failed'}
+            </span>
+            <span style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 'auto' }}>
+              n8n run log · {plural((automations ?? []).length, 'run')} logged
             </span>
           </>
         ) : (
           <span style={{ fontSize: 13, color: 'var(--muted)' }}>
-            No automation runs yet — import the n8n workflow and trigger it.
+            No automation runs yet. Import the n8n workflow and trigger it.
           </span>
         )}
       </div>

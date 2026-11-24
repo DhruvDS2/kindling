@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchAutomationsLog } from './api';
 import type { AutomationRun } from './types';
 import { useAsOf, useStats } from './asOf';
-import { type Screen, readUrl, writeUrl, fmtDay, parseDay } from './nav';
+import { type Screen, readUrl, writeUrl, fmtDay } from './nav';
 import MondayBrief from './screens/MondayBrief';
 import ReadyToBuy from './screens/ReadyToBuy';
 import AtRisk from './screens/AtRisk';
@@ -23,20 +23,22 @@ export default function App() {
     writeUrl({ screen: s, school: schoolId ?? null });
   }
 
+  // The open detail drawer lives in the URL (?school=…) so a drawer can be linked or screenshotted.
+  function selectSchool(schoolId: string | null) {
+    setFocusSchoolId(schoolId);
+    writeUrl({ school: schoolId });
+  }
+
   const { data: stats } = useStats();
   const { data: automationsData } = useQuery<AutomationRun[]>({ queryKey: ['automations'], queryFn: () => fetchAutomationsLog() });
 
   const readyCount = stats?.ready_to_buy ?? 0;
   const riskCount = stats?.at_risk ?? 0;
 
-  const lastRun = [...(automationsData ?? [])].sort((a, b) => a.run_at.localeCompare(b.run_at)).at(-1);
-  const syncLabel = lastRun
-    ? (() => {
-        const diff = Date.now() - parseDay(lastRun.run_at).getTime();
-        const h = Math.round(diff / 3600000);
-        return h < 1 ? 'Just now' : `${h}h ago`;
-      })()
-    : null;
+  // The run log isn't sorted: the latest run is the greatest run_at (ISO strings sort as dates).
+  const lastRun = (automationsData ?? []).reduce<AutomationRun | null>(
+    (latest, r) => (!latest || r.run_at > latest.run_at ? r : latest), null);
+  const syncLabel = lastRun ? fmtDay(lastRun.run_at) : null;
 
   const pageTitle: Record<Screen, string> = {
     brief: 'Monday brief',
@@ -60,19 +62,15 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', width: '100%', minHeight: '100vh' }}>
-      {/* Left nav */}
+      {/* Left nav: the column runs the full page height; the nav itself stays in view while the page scrolls */}
+      <aside style={{ width: 220, flexShrink: 0, background: 'var(--nav)' }}>
       <nav style={{
-        width: 220,
-        minHeight: '100vh',
-        background: 'var(--nav)',
+        height: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        flexShrink: 0,
         padding: '20px 12px',
-        position: 'fixed',
+        position: 'sticky',
         top: 0,
-        left: 0,
-        bottom: 0,
       }}>
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28, paddingLeft: 4 }}>
@@ -141,11 +139,12 @@ export default function App() {
         </div>
 
       </nav>
+      </aside>
 
       {/* Main content */}
       <main style={{
         flex: 1,
-        marginLeft: 220,
+        minWidth: 0,
         padding: '28px 36px',
         overflowY: 'auto',
         minHeight: '100vh',
@@ -209,17 +208,17 @@ export default function App() {
               width: 8,
               height: 8,
               borderRadius: '50%',
-              background: syncLabel ? 'var(--steady)' : 'var(--naive)',
+              background: !lastRun ? 'var(--naive)' : lastRun.status === 'succeeded' ? 'var(--steady)' : 'var(--risk)',
               flexShrink: 0,
             }} />
-            {syncLabel ? `Synced from n8n · ${syncLabel}` : 'Not yet synced'}
+            {syncLabel ? `Last n8n run · ${syncLabel}` : 'No n8n runs yet'}
           </div>
           </div>
         </div>
 
         {screen === 'brief' && <MondayBrief onNavigate={navigate} />}
-        {screen === 'ready' && <ReadyToBuy focusSchoolId={focusSchoolId} />}
-        {screen === 'risk' && <AtRisk focusSchoolId={focusSchoolId} />}
+        {screen === 'ready' && <ReadyToBuy schoolId={focusSchoolId} onSelectSchool={selectSchool} />}
+        {screen === 'risk' && <AtRisk schoolId={focusSchoolId} onSelectSchool={selectSchool} />}
         {screen === 'pipeline' && <Pipeline />}
         {screen === 'prospects' && <Prospects />}
         {screen === 'backtest' && <Backtest />}
