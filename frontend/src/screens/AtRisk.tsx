@@ -2,7 +2,7 @@
 // "At risk N | All N", sort, j/k/↵ / Esc, 8B row actions, 9A first-load fill, and on a week
 // change rows slide to their new rank and newly at-risk rows tint once (§3.2). The open
 // school (?school=) is the drawer; it pages through the rows shown here, in this order.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { fetchHealth, notifySlack } from '../api';
 import { useAsOf } from '../asOf';
@@ -38,7 +38,12 @@ function AtRiskScreen({ schoolId, onSelectSchool }: Props) {
   const toast = useOptionalToast();
   // Keep last week's rows on screen while a new week loads: no skeletons after first load (§3.2).
   const q = useQuery({ queryKey: ['health', asOf], queryFn: () => fetchHealth(asOf), placeholderData: keepPreviousData });
-  const data = q.data;
+  // Perf (Phase 3): the new week renders at transition priority, in interruptible slices, instead
+  // of in the synchronous update a query result lands as (see ReadyToBuy). One deferred snapshot,
+  // so the summary, the rows and the tints always describe the same week.
+  const live = useMemo(() => ({ asOf, data: q.data, placeholder: q.isPlaceholderData }), [asOf, q.data, q.isPlaceholderData]);
+  const shown = useDeferredValue(live);
+  const data = shown.data;
 
   const [picked, setPicked] = useState<Filter | null>(null);
   const [query, setQuery] = useState('');
@@ -75,15 +80,15 @@ function AtRiskScreen({ schoolId, onSelectSchool }: Props) {
   const [tint, setTint] = useState<ReadonlySet<string>>(new Set());
   const seen = useRef<{ asOf: string; risk: Set<string> } | null>(null);
   useEffect(() => {
-    if (!data || q.isPlaceholderData) return;
+    if (!data || shown.placeholder) return;
     const risk = new Set(data.filter(s => s.status === 'At risk').map(s => s.school_id));
     const last = seen.current;
-    if (last && last.asOf !== asOf) {
+    if (last && last.asOf !== shown.asOf) {
       const crossed = [...risk].filter(id => !last.risk.has(id));
       if (crossed.length) setTint(new Set(crossed));
     }
-    seen.current = { asOf, risk };
-  }, [data, q.isPlaceholderData, asOf]);
+    seen.current = { asOf: shown.asOf, risk };
+  }, [data, shown.placeholder, shown.asOf]);
 
   // The at-risk line, only when sorted by health and both sides are on screen.
   const dividers: TableDivider[] = useMemo(() => {

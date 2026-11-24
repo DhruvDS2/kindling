@@ -2,7 +2,7 @@
 // the base WeekPager ("‹ Mon, Feb 2, 2026 ›", Demo date reset), the quiet Updating mark while a new
 // week loads (§3.2), and the 10B WeekRuler under it (§3.5). Scrubbing state lives here, so a drag
 // re-renders only the top bar; the app gets one as_of change per settled week.
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { TopBar, UpdatingMark, WeekPager, WeekRuler, isoDay, mondaysBetween, parseDay, toMonday, type RulerBreak } from '../design';
 import { fetchCalendar } from '../api';
@@ -94,7 +94,9 @@ function DatedTopBar({ screen }: { screen: Screen }) {
   return <TopBar title={PAGE_TITLES[screen]} actions={pager} below={ruler} />;
 }
 
-export function ShellTopBar({ screen }: { screen: Screen }) {
+// Memoized (perf, Phase 3): App re-renders on every drawer open and page; the 52-tick ruler doesn't
+// need to. It still follows as_of through the context.
+export const ShellTopBar = memo(function ShellTopBar({ screen }: { screen: Screen }) {
   const { meta } = useAsOf();
   return (
     <div className="kshell-topbar" data-testid="top-bar">
@@ -110,5 +112,4 @@ export function ShellTopBar({ screen }: { screen: Screen }) {
         )}
     </div>
   );
-}
-
+});

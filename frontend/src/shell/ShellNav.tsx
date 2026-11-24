@@ -1,6 +1,6 @@
 // 1A grouped sidebar (base Nav: 8A travelling highlight, plain tabular counts) plus the quiet
 // footer: when n8n last sent alerts, and the theme switch.
-import type { FocusEvent, PointerEvent } from 'react';
+import { memo, type FocusEvent, type PointerEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Nav, SegmentedControl, Skeleton, useCountThrough, type NavGroup } from '../design';
 import { fetchAutomationsLog } from '../api';
@@ -19,7 +19,8 @@ function useNavCount(value: number | undefined): number | null {
   return shown == null ? null : Math.round(shown);
 }
 
-export function ShellNav({ active, onSelect }: { active: Screen; onSelect: (s: Screen) => void }) {
+// Memoized (perf, Phase 3): App re-renders on every drawer open and page; the nav doesn't need to.
+export const ShellNav = memo(function ShellNav({ active, onSelect }: { active: Screen; onSelect: (s: Screen) => void }) {
   const { data: stats } = useStats();
   const ready = useNavCount(stats?.ready_to_buy);
   const risk = useNavCount(stats?.at_risk);
@@ -49,7 +50,7 @@ export function ShellNav({ active, onSelect }: { active: Screen; onSelect: (s: S
       />
     </div>
   );
-}
+});
 
 /** "Alerts sent Nov 17 (n8n)": the latest run_at in /automations/log (a real date, not the simulated one). */
 function AlertsSent() {

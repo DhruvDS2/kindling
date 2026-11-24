@@ -1,6 +1,7 @@
 import {
-  Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
-  type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject,
+  Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
+  type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent,
+  type ReactNode, type RefObject,
 } from 'react';
 import { motion } from 'motion/react';
 import { dur, durMs, stagger, tr, useReduce } from '../motion';
@@ -88,6 +89,8 @@ export interface TableProps<T> {
   forceHoverKey?: string;
 }
 
+let layoutSeq = 0;
+
 const isEditable = (el: EventTarget | null) =>
   el instanceof HTMLElement && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
 
@@ -135,6 +138,45 @@ export function Table<T>(props: TableProps<T>) {
       .map(x => x.r);
   }, [rows, columns, sort]);
   const keys = useMemo(() => sorted.map(rowKey), [sorted, rowKey]);
+
+  // ── Perf (Phase 3): which rows are on or near the screen. ──
+  // A week step used to layout-measure and re-render all 85 Ready rows in one task (148ms in dev).
+  // Rows now skip re-rendering when nothing about them changed (TableRow is memoized), and only rows
+  // on or near the screen take part in the §3.2 reorder: offscreen rows swap instantly, since nobody
+  // can see them move, and motion doesn't measure them. An IntersectionObserver keeps the set
+  // (async, never forces layout); half a viewport of margin covers rows about to scroll in.
+  const near = useRef(new Set<string>());
+  const io = useRef<IntersectionObserver | null>(null);
+  const observed = useRef(new Map<string, Element>());
+  useEffect(() => () => { io.current?.disconnect(); io.current = null; }, []);
+  const observe = useCallback((el: Element | null, key: string) => {
+    if (typeof IntersectionObserver === 'undefined') return;
+    if (!io.current) {
+      io.current = new IntersectionObserver(entries => {
+        for (const e of entries) {
+          const k = (e.target as HTMLElement).dataset.key;
+          if (k == null) continue;
+          if (e.isIntersecting) near.current.add(k); else near.current.delete(k);
+        }
+      }, { rootMargin: '50% 0px' });
+    }
+    const prev = observed.current.get(key);
+    if (prev && prev !== el) { io.current.unobserve(prev); observed.current.delete(key); near.current.delete(key); }
+    if (el && prev !== el) { io.current.observe(el); observed.current.set(key, el); }
+  }, []);
+  // The index window those rows covered in the last render: a row that moves into it from offscreen
+  // also slides (it starts from its old place), so every row a rep can see moving does move.
+  const lastKeys = useRef<string[]>([]);
+  useEffect(() => { lastKeys.current = keys; }, [keys]);
+  // A small token that changes with the row order (a number, not the rows array, so React's dev
+  // render logging never diffs 85 rows per row).
+  const layoutVersion = useMemo(() => ++layoutSeq, [sorted]);
+  const nearWindow = (() => {
+    if (typeof IntersectionObserver === 'undefined') return { all: true, lo: 0, hi: -1 };
+    let lo = Infinity, hi = -1;
+    lastKeys.current.forEach((k, i) => { if (near.current.has(k)) { lo = Math.min(lo, i); hi = Math.max(hi, i); } });
+    return { all: false, lo, hi };
+  })();
 
   const toggleSort = (c: Column<T>) => {
     const first = c.firstDirection ?? (c.numeric ? 'desc' : 'asc');
@@ -211,6 +253,30 @@ export function Table<T>(props: TableProps<T>) {
     }
   }, [tintKeys, rowEl]);
 
+  // Perf (Phase 3): rows get one stable set of handlers that read the latest props at event time,
+  // so a parent re-render (a new rowActions closure for the new week, a new onOpen) doesn't
+  // re-render every row. Actions resolve fresh on click, so they never act on a stale week.
+  const latest = useRef({ onOpen, onActiveChange, rowActions, activeKey });
+  useLayoutEffect(() => { latest.current = { onOpen, onActiveChange, rowActions, activeKey }; });
+  const events = useMemo<RowEvents<T>>(() => ({
+    click: (e, row, key) => {
+      if ((e.target as HTMLElement).closest('button, a, input')) return;
+      setActiveKey(key);
+      latest.current.onOpen?.(row);
+    },
+    focus: (row, key) => {
+      if (latest.current.activeKey !== key) { setActiveKey(key); latest.current.onActiveChange?.(row); }
+    },
+    action: (e, row, key, id) => {
+      e.stopPropagation();
+      const a = latest.current.rowActions?.(row).find(x => x.id === id);
+      if (!a || a.disabled) return;
+      setActiveKey(key);
+      a.onSelect(row);
+    },
+    observe,
+  }), [observe]);
+
   // ── 8A: one soft highlight that travels to the hovered (or keyboard-active) row. ──
   const highlightKey = forceHoverKey ?? hoverKey ?? (focusWithin ? activeKey : null);
   const [hl, setHl] = useState<{ y: number; h: number; on: boolean; jump: boolean }>({ y: 0, h: 0, on: false, jump: true });
@@ -224,7 +290,7 @@ export function Table<T>(props: TableProps<T>) {
 
   const colCount = columns.length + (rowActions ? 1 : 0);
   const dividerAt = new Map((dividers ?? []).map(d => [d.beforeKey, d]));
-  const layoutTransition = reduce ? { duration: 0 } : tr('slow', 'enter');
+  const layoutTransition = useMemo(() => (reduce ? { duration: 0 } : tr('slow', 'enter')), [reduce]);
 
   return (
     <div
@@ -304,12 +370,13 @@ export function Table<T>(props: TableProps<T>) {
           {!showSkeleton && sorted.map((row, i) => {
             const key = keys[i];
             const divider = dividerAt.get(key);
-            const actions = rowActions?.(row) ?? [];
-            const label = rowLabel?.(row);
+            // On or near the screen, before or after this change: measure and slide. Otherwise a
+            // constant layoutDependency, so motion skips the row entirely.
+            const moving = nearWindow.all || near.current.has(key) || (i >= nearWindow.lo && i <= nearWindow.hi);
             return (
               <Fragment key={key}>
                 {divider && (
-                  <motion.tr layout="position" transition={layoutTransition} className={`k-table__divider k-table__divider--${divider.tone ?? 'accent'}`}>
+                  <motion.tr layout="position" layoutDependency={layoutVersion} transition={layoutTransition} className={`k-table__divider k-table__divider--${divider.tone ?? 'accent'}`}>
                     <td colSpan={colCount}>
                       <div className="k-table__divider-inner">
                         <span className="k-table__divider-label">{divider.label}</span>
@@ -318,51 +385,23 @@ export function Table<T>(props: TableProps<T>) {
                     </td>
                   </motion.tr>
                 )}
-                <motion.tr
-                  layout={revealing ? false : 'position'}
+                <TableRow<T>
+                  row={row}
+                  rowKey={key}
+                  index={i}
+                  columns={columns}
+                  actions={rowActions ? rowActions(row) : null}
+                  label={rowLabel?.(row)}
+                  tabbable={key === activeKey || (activeKey == null && i === 0)}
+                  selected={key === selectedKey}
+                  forceHover={key === forceHoverKey}
+                  openable={!!onOpen}
+                  reserveActions={reserveActions}
+                  layout={!revealing}
+                  layoutDependency={moving ? layoutVersion : 0}
                   transition={layoutTransition}
-                  data-key={key}
-                  tabIndex={key === activeKey || (activeKey == null && i === 0) ? 0 : -1}
-                  aria-label={label}
-                  aria-current={key === selectedKey ? 'true' : undefined}
-                  className={['k-table__row', onOpen ? 'is-openable' : '', key === selectedKey ? 'is-selected' : '', key === forceHoverKey ? 'is-hover' : ''].join(' ').trim()}
-                  style={{ '--k-i': Math.min(i, 10) } as CSSProperties}
-                  onClick={e => {
-                    if ((e.target as HTMLElement).closest('button, a, input')) return;
-                    setActiveKey(key);
-                    onOpen?.(row);
-                  }}
-                  onFocus={() => { if (activeKey !== key) { setActiveKey(key); onActiveChange?.(row); } }}
-                >
-                  {columns.map((c, j) => (
-                    <td key={c.id} className={c.numeric ? 'is-num k-num' : undefined} style={{ '--k-j': j } as CSSProperties}>
-                      {c.cell(row, i)}
-                    </td>
-                  ))}
-                  {rowActions && (
-                    <td className={['k-table__actions', reserveActions ? 'is-reserved' : ''].join(' ').trim()}>
-                      {actions.length > 0 && (
-                        <div className="k-rowactions">
-                          <div className="k-rowactions__group" role="group" aria-label={label ? `Actions for ${label}` : 'Row actions'}>
-                          {actions.map(a => (
-                            <button
-                              key={a.id}
-                              type="button"
-                              className="k-rowactions__btn k-focus"
-                              disabled={a.disabled}
-                              aria-keyshortcuts={a.shortcut}
-                              onClick={e => { e.stopPropagation(); setActiveKey(key); a.onSelect(row); }}
-                            >
-                              {a.label}
-                              {a.shortcut && <kbd className="k-rowactions__kbd">{a.shortcut === 'Enter' ? '↵' : a.shortcut.toUpperCase()}</kbd>}
-                            </button>
-                          ))}
-                          </div>
-                        </div>
-                      )}
-                    </td>
-                  )}
-                </motion.tr>
+                  events={events}
+                />
               </Fragment>
             );
           })}
@@ -371,6 +410,99 @@ export function Table<T>(props: TableProps<T>) {
     </div>
   );
 }
+
+interface RowEvents<T> {
+  click: (e: ReactMouseEvent, row: T, key: string) => void;
+  focus: (row: T, key: string) => void;
+  action: (e: ReactMouseEvent, row: T, key: string, actionId: string) => void;
+  observe: (el: Element | null, key: string) => void;
+}
+
+interface TableRowProps<T> {
+  row: T;
+  rowKey: string;
+  index: number;
+  columns: Column<T>[];
+  actions: RowAction<T>[] | null;
+  label: string | undefined;
+  tabbable: boolean;
+  selected: boolean;
+  forceHover: boolean;
+  openable: boolean;
+  reserveActions: boolean | undefined;
+  /** false during the first-load reveal. */
+  layout: boolean;
+  /** The row slides (§3.2) when this changes; a constant (0) keeps an offscreen row still. */
+  layoutDependency: number;
+  transition: object;
+  events: RowEvents<T>;
+}
+
+/** Actions compare by what they render; their handlers are resolved fresh on click (events.action). */
+const sameActions = <T,>(a: RowAction<T>[] | null, b: RowAction<T>[] | null) =>
+  a === b || (!!a && !!b && a.length === b.length
+    && a.every((x, i) => x.id === b[i].id && x.label === b[i].label && x.disabled === b[i].disabled && x.shortcut === b[i].shortcut));
+
+function sameRowProps<T>(a: TableRowProps<T>, b: TableRowProps<T>) {
+  for (const k of Object.keys(a) as (keyof TableRowProps<T>)[]) {
+    if (k === 'actions') continue;
+    if (a[k] !== b[k]) return false;
+  }
+  return sameActions(a.actions, b.actions);
+}
+
+/** One body row. Memoized (perf, Phase 3): a row re-renders only when its data, place or state changes. */
+const TableRow = memo(function TableRow<T>({
+  row, rowKey: key, index: i, columns, actions, label, tabbable, selected, forceHover, openable, reserveActions,
+  layout, layoutDependency, transition, events,
+}: TableRowProps<T>) {
+  const ref = useCallback((el: HTMLTableRowElement | null) => events.observe(el, key), [events, key]);
+  return (
+    <motion.tr
+      ref={ref}
+      layout={layout ? 'position' : false}
+      layoutDependency={layoutDependency}
+      transition={transition}
+      data-key={key}
+      tabIndex={tabbable ? 0 : -1}
+      aria-label={label}
+      aria-current={selected ? 'true' : undefined}
+      className={['k-table__row', openable ? 'is-openable' : '', selected ? 'is-selected' : '', forceHover ? 'is-hover' : ''].join(' ').trim()}
+      style={{ '--k-i': Math.min(i, 10) } as CSSProperties}
+      onClick={e => events.click(e, row, key)}
+      onFocus={() => events.focus(row, key)}
+    >
+      {columns.map((c, j) => (
+        <td key={c.id} className={c.numeric ? 'is-num k-num' : undefined} style={{ '--k-j': j } as CSSProperties}>
+          {c.cell(row, i)}
+        </td>
+      ))}
+      {actions && (
+        <td className={['k-table__actions', reserveActions ? 'is-reserved' : ''].join(' ').trim()}>
+          {actions.length > 0 && (
+            <div className="k-rowactions">
+              <div className="k-rowactions__group" role="group" aria-label={label ? `Actions for ${label}` : 'Row actions'}>
+              {actions.map(a => (
+                <button
+                  key={a.id}
+                  type="button"
+                  className="k-rowactions__btn k-focus"
+                  disabled={a.disabled}
+                  aria-keyshortcuts={a.shortcut}
+                  onClick={e => events.action(e, row, key, a.id)}
+                >
+                  {a.label}
+                  {a.shortcut && <kbd className="k-rowactions__kbd">{a.shortcut === 'Enter' ? '↵' : a.shortcut.toUpperCase()}</kbd>}
+                </button>
+              ))}
+              </div>
+            </div>
+          )}
+        </td>
+      )}
+    </motion.tr>
+  );
+}, sameRowProps) as <T>(props: TableRowProps<T>) => ReactNode;
 
 /** Seconds for the first-load reveal of `rows` rows (for callers that sequence after it). */
 export function revealSeconds(rows: number) {

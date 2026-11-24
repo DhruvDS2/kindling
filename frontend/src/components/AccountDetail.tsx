@@ -2,7 +2,7 @@
 // properties, the 4C pager from the list the rep came from (DrawerListContext), the 5A
 // usage chart with the school-day / calendar-day toggle, and the score history. Opened from
 // At risk (type="health") and Ready (type="pql"); the props stay { type, school, onClose }.
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { startTransition, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PqlScore, HealthScore } from '../types';
 import { notifySlack, fetchSchool, fetchSchoolHistory, fetchSchoolUsage, fetchCalendar } from '../api';
@@ -52,7 +52,8 @@ function SchoolDrawer({ type, school, onClose }: Props) {
   // with chart layout (their data is already being fetched meanwhile).
   const [settled, setSettled] = useState(false);
   useEffect(() => {
-    const t = window.setTimeout(() => setSettled(true), durMs('slow'));
+    // Perf (Phase 3): the charts mount as a transition, so their render is sliced, not one task.
+    const t = window.setTimeout(() => startTransition(() => setSettled(true)), durMs('slow'));
     return () => window.clearTimeout(t);
   }, []);
   if (id !== firstId && !paged) setPaged(true);
