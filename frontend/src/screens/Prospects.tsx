@@ -1,11 +1,21 @@
-import { Fragment, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchTop10Prospects, notifySlack } from '../api';
-import { useAsOf, usePql } from '../asOf';
+import { Fragment, useCallback, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { fetchPql, fetchTop10Prospects, notifySlack, type ProspectSignal, type TopProspect } from '../api';
+import { useAsOf } from '../asOf';
 import { fmtDay } from '../nav';
 import type { PqlScore } from '../types';
-import type { TopProspect } from '../api';
-import { SkeletonCard } from '../components/Skeleton';
+import {
+  Button, EmptyState, ErrorState, NumberFlow, Skeleton, Table, ToastProvider, Tooltip, TruncatedText,
+  addWeeks, fmtShort, useToast, type Column, type RowAction, type TableDivider,
+} from '../design';
+
+// Prospects: free schools with little or no use, ranked by the API's priority score
+// (GET /prospects/top10), plus every other cold school (GET /pql). Outreach lives in the 8B
+// row actions: neutral buttons, no Slack/LinkedIn/Gmail brand colors.
+
+const stack: CSSProperties = { display: 'flex', flexDirection: 'column', minWidth: 0 };
+
+// ── Outreach ─────────────────────────────────────────────────────────────────
 
 function gmailUrl(email: string, subject: string, body: string) {
   return (
@@ -16,8 +26,13 @@ function gmailUrl(email: string, subject: string, body: string) {
   );
 }
 
+function linkedInUrl(school: PqlScore) {
+  const who = [school.contact_name, school.name].filter(Boolean).join(' ');
+  return `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(who)}`;
+}
+
 function buildEmailDraft(school: PqlScore) {
-  const first = school.contact_name?.split(' ')[0] ?? 'there';
+  const first = school.contact_name?.split(' ')[0] || 'there';
   if (school.pql_score === 0) {
     return {
       subject: `Getting started at ${school.name}`,
@@ -38,315 +53,284 @@ function buildEmailDraft(school: PqlScore) {
       `I can see ${school.active_teachers} teacher${school.active_teachers !== 1 ? 's' : ''} have been exploring the platform ` +
       `and wanted to make sure the team is getting what they need.\n\n` +
       `Is there anything that's gotten in the way of wider adoption? Or a better time of year to reconnect?\n\n` +
-      `Happy to jump on a quick call — no agenda, just want to make sure ${school.name} is set up for success.\n\nBest,`,
+      `Happy to jump on a quick call, no agenda: I just want to make sure ${school.name} is set up for success.\n\nBest,`,
   };
 }
 
-const CHANNELS = [
-  { key: 'slack',    label: 'Slack',       bg: '#4A154B', color: '#fff' },
-  { key: 'gmail',    label: 'Gmail',       bg: '#EA4335', color: '#fff' },
-  { key: 'linkedin', label: 'LinkedIn',    bg: '#0A66C2', color: '#fff' },
-  { key: 'twitter',  label: 'X / Twitter', bg: '#000',    color: '#fff' },
-];
+/**
+ * The four outreach row actions (DESIGN.md §3.4): Open in Gmail · Find on LinkedIn · Copy email `c`
+ * · Send to #sales `s`. Send posts for real (POST /notify/slack), only when the rep asks, and
+ * confirms with a toast.
+ */
+function useOutreach(asOf: string) {
+  const toast = useToast();
+  const inFlight = useRef(new Set<string>());
+  const [sending, setSending] = useState<ReadonlySet<string>>(new Set());
+  const [sent, setSent] = useState<ReadonlySet<string>>(new Set());
+  const keyOf = useCallback((s: PqlScore) => `${s.school_id}@${asOf}`, [asOf]);
 
-function OutreachBar({ school }: { school: PqlScore }) {
-  const { asOf } = useAsOf();
-  const [slackState, setSlackState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
-  const draft = buildEmailDraft(school);
-
-  async function sendSlack() {
-    setSlackState('sending');
+  const send = useCallback(async function sendToSales(s: PqlScore): Promise<void> {
+    const key = keyOf(s);
+    if (inFlight.current.has(key)) return;
+    inFlight.current.add(key);
+    setSending(prev => new Set(prev).add(key));
+    const fail = (why?: string) => toast({
+      message: `Couldn't send ${s.name} to #sales${why ? `: ${why}` : '.'}`,
+      tone: 'error',
+      action: { label: 'Try again', onClick: () => { void sendToSales(s); } },
+    });
     try {
-      const res = await notifySlack('sales', school.school_id, asOf);
-      setSlackState(res.ok ? 'sent' : 'error');
-    } catch {
-      setSlackState('error');
+      const res = await notifySlack('sales', s.school_id, asOf);
+      if (res.ok) {
+        setSent(prev => new Set(prev).add(key));
+        toast({ message: `Sent ${s.name} to #sales.`, tone: 'success' });
+      } else {
+        fail(res.error);
+      }
+    } catch (e) {
+      fail(e instanceof Error ? e.message : undefined);
+    } finally {
+      inFlight.current.delete(key);
+      setSending(prev => { const next = new Set(prev); next.delete(key); return next; });
     }
-  }
+  }, [asOf, keyOf, toast]);
 
-  const actions: Record<string, { href?: string; onClick?: () => void; label?: string }> = {
-    slack: {
-      label: slackState === 'sending' ? 'Sending…' : slackState === 'sent' ? '✓ Sent' : slackState === 'error' ? 'Failed — retry' : 'Slack',
-      onClick: slackState !== 'sending' && slackState !== 'sent' ? sendSlack : undefined,
-    },
-    gmail: { href: gmailUrl(school.contact_email ?? '', draft.subject, draft.body) },
-    linkedin: { href: `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent((school.contact_name ?? '') + ' ' + school.name)}` },
-    twitter: { href: `https://x.com/search?q=${encodeURIComponent(school.name)}` },
-  };
+  const copy = useCallback(async (s: PqlScore) => {
+    try {
+      await navigator.clipboard.writeText(s.contact_email);
+      toast({ message: `Copied ${s.contact_email}`, tone: 'success' });
+    } catch {
+      toast({ message: `Couldn't copy. The email is ${s.contact_email}`, tone: 'error' });
+    }
+  }, [toast]);
 
+  return useCallback((s: PqlScore): RowAction<PqlScore>[] => {
+    const key = keyOf(s);
+    const isSending = sending.has(key);
+    const isSent = sent.has(key);
+    const draft = buildEmailDraft(s);
+    return [
+      {
+        id: 'gmail', label: 'Open in Gmail', disabled: !s.contact_email,
+        onSelect: () => { window.open(gmailUrl(s.contact_email, draft.subject, draft.body), '_blank', 'noopener,noreferrer'); },
+      },
+      { id: 'linkedin', label: 'Find on LinkedIn', onSelect: () => { window.open(linkedInUrl(s), '_blank', 'noopener,noreferrer'); } },
+      { id: 'copy', label: 'Copy email', shortcut: 'c', disabled: !s.contact_email, onSelect: () => { void copy(s); } },
+      {
+        id: 'send',
+        label: isSending ? 'Sending…' : isSent ? 'Sent to #sales' : 'Send to #sales',
+        shortcut: isSending || isSent ? undefined : 's',
+        disabled: isSending || isSent,
+        onSelect: () => { void send(s); },
+      },
+    ];
+  }, [keyOf, sending, sent, send, copy]);
+}
+
+// ── Cells ────────────────────────────────────────────────────────────────────
+
+function SchoolCell({ s }: { s: PqlScore }) {
+  const place = [s.type === 'district' ? 'District' : 'Independent', [s.city, s.state].filter(Boolean).join(', ')]
+    .filter(Boolean).join(' · ');
   return (
-    <div style={{ padding: '12px 16px 16px', borderTop: '1px solid var(--row-divider)', background: 'var(--nav)' }}>
-      <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
-        {school.contact_name
-          ? `${school.contact_name} · ${school.contact_title} · ${school.contact_email}`
-          : 'No contact on file — find one before reaching out'}
-        <span style={{ color: 'var(--line)', margin: '0 8px' }}>·</span>
-        <span style={{ fontStyle: 'italic', color: 'var(--muted)' }}>In production these open the native app or CRM integration</span>
-      </div>
-      <div style={{ display: 'flex', gap: 8 }}>
-        {CHANNELS.map(ch => {
-          const a = actions[ch.key];
-          const isSent = ch.key === 'slack' && slackState === 'sent';
-          const isError = ch.key === 'slack' && slackState === 'error';
-          const bg = isSent ? 'var(--steady)' : isError ? 'var(--risk)' : ch.bg;
-          const Tag = a.href ? 'a' : 'button';
-          return (
-            <Tag
-              key={ch.key}
-              {...(a.href ? { href: a.href, target: '_blank', rel: 'noopener noreferrer' } : {})}
-              onClick={a.onClick}
-              style={{
-                padding: '6px 14px', borderRadius: 6, fontSize: 13, fontWeight: 500,
-                background: bg, color: ch.color, border: 'none', cursor: 'pointer',
-                textDecoration: 'none', display: 'inline-flex', alignItems: 'center',
-                opacity: ch.key === 'slack' && slackState === 'sending' ? 0.6 : 1,
-                fontFamily: 'Inter, sans-serif',
-              }}
-            >
-              {a.label ?? ch.label}
-            </Tag>
-          );
-        })}
-      </div>
+    <div style={stack}>
+      <TruncatedText className="k-medium">{s.name}</TruncatedText>
+      <TruncatedText className="k-text-sm k-tertiary">{place}</TruncatedText>
     </div>
   );
 }
 
-function PriorityScore({ score }: { score: number }) {
+function ContactCell({ s }: { s: PqlScore }) {
+  if (!s.contact_name) return <span className="k-text-sm k-tertiary">No contact yet</span>;
   return (
-    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
-      {score}
-    </span>
-  );
-}
-
-/** The signals the API scored, each with the points it awarded, highest first. */
-function rankedBy(prospects: TopProspect[]): string {
-  const pts = new Map<string, number>();
-  for (const p of prospects) for (const s of p.signals) {
-    if (s.pts > 0) pts.set(s.label, Math.max(pts.get(s.label) ?? 0, s.pts));
-  }
-  return [...pts].sort((a, b) => b[1] - a[1]).map(([label, n]) => `${label} (${n} pts)`).join(' · ');
-}
-
-function Top10({ prospects, total, asOf }: { prospects: TopProspect[]; total: number; asOf: string }) {
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [signalsOpen, setSignalsOpen] = useState<string | null>(null);
-  const ranked = rankedBy(prospects);
-
-  return (
-    <div data-testid="prospects-top" style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden', marginBottom: 20 }}>
-      <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--row-divider)' }}>
-        <div style={{ fontWeight: 600, fontSize: 15 }}>
-          Top {prospects.length} of {total} prospects · highest priority to pursue
-        </div>
-        <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
-          {ranked ? `Priority adds up the points for: ${ranked}` : 'No prospect has a scoring signal yet.'}
-        </div>
-      </div>
-      {prospects.length === 0 && (
-        <div style={{ padding: '28px 20px', color: 'var(--muted)', fontSize: 14 }}>
-          No cold or dormant free schools on {fmtDay(asOf)}.
-        </div>
-      )}
-
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ borderBottom: '1px solid var(--row-divider)' }}>
-            {['#', 'School', 'State', 'Priority', 'Why', 'PQL', 'Contact'].map(h => (
-              <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 12, color: 'var(--muted)', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {prospects.map((school, i) => {
-            const isOpen = expanded === school.school_id;
-            const sigOpen = signalsOpen === school.school_id;
-            const positiveSignals = school.signals.filter(s => s.pts > 0);
-            return (
-              <Fragment key={school.school_id}>
-                <tr
-                  onClick={() => setExpanded(isOpen ? null : school.school_id)}
-                  style={{
-                    borderBottom: '1px solid var(--row-divider)', cursor: 'pointer',
-                    background: isOpen ? 'var(--nav)' : 'transparent',
-                  }}
-                  onMouseEnter={e => { if (!isOpen) e.currentTarget.style.background = 'var(--nav)'; }}
-                  onMouseLeave={e => { if (!isOpen) e.currentTarget.style.background = 'transparent'; }}
-                >
-                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--muted)', fontFamily: 'JetBrains Mono, monospace' }}>
-                    {i + 1}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{school.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 1 }}>
-                      {school.type === 'district' ? 'District' : 'Independent'}
-                    </div>
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--body)' }}>{school.state}</td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <PriorityScore score={school.priority_score} />
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <button
-                      onClick={e => { e.stopPropagation(); setSignalsOpen(sigOpen ? null : school.school_id); }}
-                      style={{
-                        background: 'none', border: '1px solid var(--line)', borderRadius: 6,
-                        padding: '3px 8px', fontSize: 12, color: 'var(--muted)', cursor: 'pointer',
-                      }}
-                    >
-                      {positiveSignals.length} signal{positiveSignals.length !== 1 ? 's' : ''} {sigOpen ? '↑' : '↓'}
-                    </button>
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, fontFamily: 'JetBrains Mono, monospace', color: 'var(--muted)' }}>
-                    {school.pql_score}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ fontSize: 13, color: 'var(--ink)' }}>{school.contact_name ?? '—'}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>{school.contact_title ?? ''}</div>
-                  </td>
-                </tr>
-                {sigOpen && (
-                  <tr>
-                    <td colSpan={7} style={{ padding: 0 }}>
-                      <div style={{ background: 'var(--nav)', padding: '10px 20px 12px', borderBottom: '1px solid var(--row-divider)' }}>
-                        {school.signals.map((sig, j) => (
-                          <div key={`${j}-${sig.label}`} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '3px 0' }}>
-                            <span style={{
-                              fontSize: 11, fontWeight: 600, fontFamily: 'JetBrains Mono, monospace',
-                              color: sig.pts > 0 ? 'var(--ember)' : 'var(--muted)',
-                              minWidth: 42,
-                            }}>
-                              {sig.pts > 0 ? `+${sig.pts}` : String(sig.pts)}
-                            </span>
-                            <span style={{ fontSize: 13, fontWeight: 500, color: sig.pts > 0 ? 'var(--ink)' : 'var(--muted)' }}>
-                              {sig.label}
-                            </span>
-                            <span style={{ fontSize: 12, color: 'var(--muted)' }}>{sig.detail}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                )}
-                {isOpen && (
-                  <tr>
-                    <td colSpan={7} style={{ padding: 0 }}>
-                      <OutreachBar school={school} />
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-            );
-          })}
-        </tbody>
-      </table>
+    <div style={stack}>
+      <TruncatedText>{s.contact_name}</TruncatedText>
+      {s.contact_title && <TruncatedText className="k-text-sm k-tertiary">{s.contact_title}</TruncatedText>}
     </div>
   );
 }
 
-function SchoolGroup({ title, subtitle, schools }: { title: string; subtitle: string; schools: PqlScore[] }) {
-  const [expanded, setExpanded] = useState<string | null>(null);
-  if (schools.length === 0) return null;
+/** Why a school ranks where it does: each signal the API scored, with its points. Details on hover or focus. */
+function WhyCell({ signals }: { signals: ProspectSignal[] }) {
+  const scored = signals.filter(s => s.pts > 0);
+  const flags = signals.filter(s => s.pts <= 0);
+  const parts: ReactNode[] = [
+    ...scored.map(s => (
+      <span key={s.label} style={{ whiteSpace: 'nowrap' }}>
+        {s.label} <span className="k-num k-tertiary">{s.pts}</span>
+      </span>
+    )),
+    ...flags.map(s => <span key={s.label} className="k-tertiary" style={{ whiteSpace: 'nowrap' }}>{s.label}</span>),
+  ];
   return (
-    <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden', marginBottom: 20 }}>
-      <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--row-divider)' }}>
-        <div style={{ fontWeight: 600, fontSize: 15 }}>{title}</div>
-        <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>{subtitle}</div>
+    <Tooltip
+      content={
+        <span style={{ ...stack, gap: 'var(--space-0-5)' }}>
+          {signals.map(s => <span key={s.label}>{s.label}: <span className="k-secondary">{s.detail}</span></span>)}
+        </span>
+      }
+    >
+      <span tabIndex={0} className="k-focus k-text-sm k-secondary" style={{ display: 'block', borderRadius: 'var(--radius-1)' }}>
+        {parts.map((p, i) => <Fragment key={i}>{i > 0 && <span className="k-tertiary"> · </span>}{p}</Fragment>)}
+      </span>
+    </Tooltip>
+  );
+}
+
+function SectionHead({ title, context, aside }: { title: ReactNode; context?: ReactNode; aside?: ReactNode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 'var(--space-2)', marginBottom: 'var(--space-1-5)' }}>
+      <div style={{ ...stack, flex: 1, gap: 'var(--space-0-5)' }}>
+        <h2 className="k-text-lg k-medium k-primary">{title}</h2>
+        {context && <p className="k-text-sm k-tertiary" style={{ margin: 0 }}>{context}</p>}
       </div>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ borderBottom: '1px solid var(--row-divider)' }}>
-            {['School', 'State', 'PQL', 'Teachers', 'Sessions', 'Contact'].map(h => (
-              <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {schools.map((school) => {
-            const isOpen = expanded === school.school_id;
-            return (
-              <Fragment key={school.school_id}>
-                <tr
-                  onClick={() => setExpanded(isOpen ? null : school.school_id)}
-                  style={{ borderBottom: '1px solid var(--row-divider)', cursor: 'pointer', background: isOpen ? 'var(--nav)' : 'transparent' }}
-                  onMouseEnter={e => { if (!isOpen) e.currentTarget.style.background = 'var(--nav)'; }}
-                  onMouseLeave={e => { if (!isOpen) e.currentTarget.style.background = 'transparent'; }}
-                >
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{school.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 1 }}>{school.type === 'district' ? 'District' : 'Independent'}</div>
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--body)' }}>{school.state}</td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, fontFamily: 'JetBrains Mono, monospace', color: 'var(--muted)' }}>{school.pql_score}</td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, fontFamily: 'JetBrains Mono, monospace', color: 'var(--body)' }}>{school.active_teachers}</td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, fontFamily: 'JetBrains Mono, monospace', color: 'var(--body)' }}>{school.student_sessions.toLocaleString()}</td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ fontSize: 13, color: 'var(--ink)' }}>{school.contact_name ?? '—'}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>{school.contact_title ?? ''}</div>
-                  </td>
-                </tr>
-                {isOpen && (
-                  <tr>
-                    <td colSpan={6} style={{ padding: 0 }}>
-                      <OutreachBar school={school} />
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-            );
-          })}
-        </tbody>
-      </table>
+      {aside}
     </div>
   );
 }
 
-// /prospects/top10 treats free schools scoring under this as prospects (api.py, prospects_top10).
-// It only splits the lists below and is never printed.
-const PROSPECT_CUT = 20;
+// ── Screen ───────────────────────────────────────────────────────────────────
+
+type Ranked = TopProspect & { rank: number };
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
 
 export default function Prospects() {
-  const { asOf } = useAsOf();
-  const { data: pqlData, isLoading: pqlLoading, error: pqlError } = usePql();
-  const top = useQuery({ queryKey: ['prospects-top10', asOf], queryFn: () => fetchTop10Prospects(asOf) });
+  // Toasts confirm Copy and Send. The app shell doesn't mount a ToastProvider yet; when it does, this one can go.
+  return (
+    <ToastProvider>
+      <ProspectsView />
+    </ToastProvider>
+  );
+}
 
-  if (pqlError) return <div style={{ color: 'var(--muted)' }}>Failed to load — is the API running?</div>;
-  if (pqlLoading || top.isLoading) return <SkeletonCard rows={8} />;
+function ProspectsView() {
+  const { asOf, setAsOf, meta } = useAsOf();
+  const top = useQuery({
+    queryKey: ['prospects-top10', asOf],
+    queryFn: () => fetchTop10Prospects(asOf),
+    placeholderData: keepPreviousData,
+  });
+  const pql = useQuery({ queryKey: ['pql', asOf], queryFn: () => fetchPql(asOf), placeholderData: keepPreviousData });
+  const actions = useOutreach(asOf);
+  const [showRest, setShowRest] = useState(false);
 
-  const cold    = (pqlData ?? []).filter(s => s.pql_score === 0);
-  const dormant = (pqlData ?? []).filter(s => s.pql_score > 0 && s.pql_score < PROSPECT_CUT);
-  const top10   = top.data?.top10 ?? [];
-  const top10Ids = new Set(top10.map(s => s.school_id));
+  const ranked = useMemo<Ranked[]>(() => (top.data?.top10 ?? []).map((p, i) => ({ ...p, rank: i + 1 })), [top.data]);
+  const total = top.data?.total_prospects ?? 0;
 
-  // remaining schools not in the top list
-  const coldRest    = cold.filter(s => !top10Ids.has(s.school_id));
-  const dormantRest = dormant.filter(s => !top10Ids.has(s.school_id));
+  // Every prospect the API counted is a free school with the lowest readiness scores, so the
+  // `total_prospects` lowest-scoring schools in /pql are exactly that pool (no cut-off typed in here).
+  const rest = useMemo(() => {
+    if (!pql.data || !top.data) return null;
+    const pool = [...pql.data].sort((a, b) => a.pql_score - b.pql_score).slice(0, top.data.total_prospects);
+    const inTop = new Set(top.data.top10.map(p => p.school_id));
+    const others = pool.filter(s => !inTop.has(s.school_id));
+    const some = others.filter(s => s.pql_score > 0).sort((a, b) => b.pql_score - a.pql_score || a.name.localeCompare(b.name));
+    const none = others.filter(s => s.pql_score === 0).sort((a, b) => a.name.localeCompare(b.name));
+    return { rows: [...some, ...none], some, none };
+  }, [pql.data, top.data]);
+
+  const topColumns = useMemo<Column<Ranked>[]>(() => [
+    { id: 'rank', header: '#', numeric: true, width: '5%', skeleton: '50%', cell: r => <span className="k-tertiary">{r.rank}</span> },
+    { id: 'school', header: 'School', width: '24%', sortValue: r => r.name, skeleton: '70%', skeletonLines: 2, cell: r => <SchoolCell s={r} /> },
+    {
+      id: 'priority', header: 'Priority', numeric: true, width: '9%', sortValue: r => r.priority_score, skeleton: '45%',
+      cell: r => <NumberFlow value={r.priority_score} reveal={false} className="k-medium" />,
+    },
+    { id: 'why', header: 'Why', skeleton: '90%', skeletonLines: 2, cell: r => <WhyCell signals={r.signals} /> },
+    {
+      id: 'pql', header: 'PQL', numeric: true, width: '7%', sortValue: r => r.pql_score, skeleton: '40%',
+      cell: r => <NumberFlow value={r.pql_score} reveal={false} className="k-secondary" />,
+    },
+    { id: 'contact', header: 'Contact', width: '18%', skeleton: '70%', skeletonLines: 2, cell: r => <ContactCell s={r} /> },
+  ], []);
+
+  const restColumns = useMemo<Column<PqlScore>[]>(() => [
+    { id: 'school', header: 'School', cell: r => <SchoolCell s={r} /> },
+    { id: 'teachers', header: 'Active teachers', numeric: true, width: '12%', cell: r => <NumberFlow value={r.active_teachers} reveal={false} /> },
+    { id: 'sessions', header: 'Student sessions', numeric: true, width: '12%', cell: r => <NumberFlow value={r.student_sessions} reveal={false} /> },
+    { id: 'pql', header: 'PQL', numeric: true, width: '7%', cell: r => <NumberFlow value={r.pql_score} reveal={false} className="k-secondary" /> },
+    { id: 'contact', header: 'Contact', width: '18%', cell: r => <ContactCell s={r} /> },
+  ], []);
+
+  const restDividers: TableDivider[] = [];
+  if (rest?.some.length) restDividers.push({ beforeKey: rest.some[0].school_id, label: `Some activity · ${plural(rest.some.length, 'school')}`, tone: 'neutral' });
+  if (rest?.none.length) restDividers.push({ beforeKey: rest.none[0].school_id, label: `No activity yet · ${plural(rest.none.length, 'school')}`, tone: 'neutral' });
+
+  const day = fmtDay(asOf);
+  const lastWeek = addWeeks(asOf, -1);
+  const firstLoad = top.isLoading;
+
+  const title = firstLoad
+    ? <Skeleton width="25%" />
+    : ranked.length > 0 ? `${plural(ranked.length, 'cold school')} worth a first call` : 'Cold schools worth a first call';
+  const context = firstLoad
+    ? <Skeleton width="50%" height="label" />
+    : top.data && ranked.length > 0
+      ? `Picked from ${plural(total, 'free school')} with little or no use on ${day}. Priority adds up the points under Why.`
+      : undefined;
 
   return (
-    <>
-      {top.error ? (
-        <div role="alert" style={{
-          background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 12, padding: 20,
-          marginBottom: 20, color: 'var(--muted)', fontSize: 14,
-        }}>
-          Couldn't load the top prospects for {fmtDay(asOf)}: {(top.error as Error).message}
-        </div>
-      ) : (
-        <Top10 prospects={top10} total={top.data?.total_prospects ?? top10.length} asOf={asOf} />
+    <div data-testid="prospects-top" style={{ ...stack, gap: 'var(--space-6)' }}>
+      <section aria-label="Cold schools worth a first call">
+        <SectionHead title={title} context={context} />
+        <Table
+          aria-label={`Cold schools worth a first call on ${day}`}
+          rows={ranked}
+          columns={topColumns}
+          rowKey={r => r.school_id}
+          rowLabel={r => r.name}
+          loading={firstLoad}
+          skeletonRows={10}
+          defaultSort={{ columnId: 'priority', direction: 'desc' }}
+          rowActions={actions}
+          error={top.error && !top.data ? (
+            <ErrorState
+              title={`Couldn't load the cold schools for ${day}.`}
+              detail={(top.error as Error).message}
+              onRetry={() => { void top.refetch(); }}
+              retrying={top.isFetching}
+            />
+          ) : undefined}
+          empty={
+            <EmptyState action={lastWeek >= meta.sim_start ? { label: `Show ${fmtShort(lastWeek)}`, onClick: () => setAsOf(lastWeek) } : undefined}>
+              No cold schools on {day}: every free school is getting some use.
+            </EmptyState>
+          }
+        />
+      </section>
+
+      {pql.error && !pql.data ? (
+        <ErrorState
+          title={`Couldn't load the other free schools for ${day}.`}
+          detail={(pql.error as Error).message}
+          onRetry={() => { void pql.refetch(); }}
+          retrying={pql.isFetching}
+        />
+      ) : rest && rest.rows.length > 0 && (
+        <section aria-label="More cold schools">
+          <SectionHead
+            title={`${plural(rest.rows.length, 'more cold school')}`}
+            context={`Lower priority on ${day}. Schools with some activity come first.`}
+            aside={
+              <Button variant="quiet" size="sm" aria-expanded={showRest} onClick={() => setShowRest(v => !v)}>
+                {showRest ? 'Hide' : `Show all ${rest.rows.length}`}
+              </Button>
+            }
+          />
+          {showRest && (
+            <Table
+              aria-label={`More cold schools on ${day}`}
+              rows={rest.rows}
+              columns={restColumns}
+              rowKey={r => r.school_id}
+              rowLabel={r => r.name}
+              dividers={restDividers}
+              rowActions={actions}
+            />
+          )}
+        </section>
       )}
-      <SchoolGroup
-        title="Cold · no activity"
-        subtitle={`${coldRest.length} more school${coldRest.length === 1 ? '' : 's'}: signed up but zero teacher or student activity`}
-        schools={coldRest}
-      />
-      <SchoolGroup
-        title="Dormant · minimal activity"
-        subtitle={`${dormantRest.length} more school${dormantRest.length === 1 ? '' : 's'}: some activity but not gaining traction`}
-        schools={dormantRest}
-      />
-    </>
+    </div>
   );
 }
