@@ -23,6 +23,10 @@ const meta = await j('/meta');
 const asOf = process.env.AS_OF ?? meta.demo_as_of;
 const readySchool = (await j(`/pql?as_of=${asOf}`)).scores.find(s => s.status === 'Ready');
 const riskSchool = (await j(`/health?as_of=${asOf}`)).scores.find(s => s.status === 'At risk');
+// The idea in one picture: a healthy school on the first Monday back from winter break.
+const JAN5 = '2026-01-05';
+const jan5Healthy = (await j(`/health?as_of=${JAN5}`)).scores
+  .filter(s => s.status === 'Healthy').sort((x, y) => y.active_teachers - x.active_teachers)[0];
 
 const shots = [
   ['01-brief', { screen: 'brief' }],
@@ -34,7 +38,8 @@ const shots = [
   ['07-prospects', { screen: 'prospects' }],
   ['08-backtest', { screen: 'backtest' }],
   ['09-automations', { screen: 'automations' }],
-  ['10-brief-jan5', { screen: 'brief', as_of: '2026-01-05' }],
+  ['10-brief-jan5', { screen: 'brief', as_of: JAN5 }],
+  ['11-detail-healthy-jan5', { screen: 'risk', as_of: JAN5, school: jan5Healthy?.school_id }],
 ];
 
 let browser;
@@ -56,7 +61,15 @@ for (const [name, params] of shots) {
   await page.mouse.move(700, 400);   // recharts paints some series on first pointer move in headless Chrome
   await page.waitForTimeout(800);
   const file = resolve(OUT, `${PREFIX}-${name}.png`);
-  await page.screenshot({ path: file, fullPage: true });
+  if (params.school) {
+    // The drawer is fixed to the viewport: shoot a tall viewport, not the (long) page behind it.
+    await page.setViewportSize({ width: 1440, height: 1800 });
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: file });
+    await page.setViewportSize({ width: 1440, height: 900 });
+  } else {
+    await page.screenshot({ path: file, fullPage: true });
+  }
   console.log(`saved ${file}`);
 }
 await browser.close();
