@@ -118,7 +118,15 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. You should see the Monday brief.
+Open `http://localhost:5173`. You should see the Monday brief, scored as of the pinned demo date (Feb 2, 2026). The date picker at the top moves through the simulated school year (Aug 1, 2025 to Jul 31, 2026); the API rejects dates outside it.
+
+To point the UI at an API on another port: `VITE_API_URL=http://localhost:8001 npm run dev`.
+
+Screenshot every screen with Playwright (uses your installed Chrome, fails on console errors or failed API calls):
+
+```bash
+npm run screenshots        # writes docs/gates/screens/ui-*.png; needs the API and `npm run dev` running
+```
 
 ---
 
@@ -134,7 +142,7 @@ lt --port 8000
 
 Keep this running alongside uvicorn. **Write down the URL — you'll need it in Step 6.**
 
-> The URL changes every time you restart localtunnel. When it does, update the HTTP Request nodes in `kindling_weekly` and `kindling_followup` inside n8n (see Step 6).
+> The URL changes every time you restart localtunnel. When it does, update the 5 HTTP Request nodes in `kindling_weekly` and `kindling_followup` inside n8n (see Step 6). Every placeholder is `YOUR_LOCALTUNNEL_URL`: paste the full `https://…loca.lt` URL in its place.
 
 ---
 
@@ -186,17 +194,29 @@ Everything else — the scoring engine, API, frontend, and automations — stays
 
 ## API reference
 
+Every `as_of` must fall inside the simulated year (2025-08-01 to 2026-07-31) or the API answers 400. Leave it out to get the pinned demo date (`DEMO_AS_OF` in `config.py`, 2026-02-02).
+
 | Method | Endpoint | What it returns |
 |---|---|---|
-| GET | `/pql?as_of=YYYY-MM-DD` | PQL scores for all free schools |
-| GET | `/health?as_of=YYYY-MM-DD` | Health scores for all paying schools |
-| GET | `/stats?as_of=YYYY-MM-DD` | KPI summary (counts, ARR, NRR) |
-| GET | `/prospects/top10` | Top 10 cold leads by priority score |
+| GET | `/meta` | Demo date, simulated year, replay range, window sizes, thresholds |
+| GET | `/pql?as_of=YYYY-MM-DD` | PQL scores for free schools: score, status, top 3 reasons plus every reason with its points, window dates |
+| GET | `/health?as_of=YYYY-MM-DD` | Health scores for paying schools whose renewal is still ahead: renewal date, days to renewal, reasons with points |
+| GET | `/stats?as_of=YYYY-MM-DD` | KPI tiles: Ready count, At-risk count and ARR, projected NRR, with their definitions |
+| GET | `/schools/{id}?as_of=…` | One school: profile, lifecycle (free/converted/paid/renewed/churned/…), current score, the school-day and calendar-day windows |
+| GET | `/schools/{id}/history?as_of=…&mode=school_days\|calendar` | The school's score every Monday up to `as_of` |
+| GET | `/schools/{id}/usage?as_of=…` | Daily usage up to `as_of`, with each day's kind on the school's own calendar |
+| GET | `/calendars/{calendar_id}` | A school calendar: first and last day, breaks |
+| GET | `/backtest` | Weekly at-risk alert counts, naive vs Kindling, with breaks (descriptive, no outcomes) |
+| GET | `/backtest/results` | Every backtest and experiment table, read from the `results/*.json` files `backtest.py` writes, with source file and run timestamp |
+| GET | `/slack/pql`, `/slack/health` | Slack blocks for the top Ready / At-risk schools |
+| GET | `/prospects/top10?as_of=…` | Top 10 cold leads by priority score |
 | GET | `/outreach/stale?days=14` | Schools contacted N+ days ago with no PQL movement |
-| POST | `/notify/slack` | Send a school alert to Slack and log outreach |
-| GET | `/pipeline/funnel` | School counts by pipeline stage |
-| GET | `/backtest` | Full season backtest results |
+| GET | `/pipeline/funnel`, `/snapshot/pql/schools` | Pipeline snapshots (filled by `POST /snapshot/pql`) |
 | GET | `/automations/log` | n8n run history |
+| POST | `/notify/slack` | Send a school alert to Slack through n8n and log the outreach |
+| POST | `/snapshot/pql`, `/log-run` | Record a PQL snapshot / an n8n run |
+
+"At risk" has one definition everywhere (screens, tiles, Slack): health score below 70 with the renewal still ahead. A school stops being scored for health once its renewal date arrives.
 
 ---
 
@@ -211,6 +231,7 @@ Everything else — the scoring engine, API, frontend, and automations — stays
   - **Check:** the threshold sweep picks a threshold on fall data and checks it on spring. It independently picks 70, and 70 holds on spring (`results/threshold_sweep.md`).
   - **Margin:** the lowest score any healthy school reaches before its renewal is 72, just two points above the line. At 75, spring false alarms already start (3%), and at 80 they reach 17%. Small weight changes could break the 0% false-alarm result, so re-check it on real data before trusting it.
 - **Admin signups are clean in the simulator.** Only converter-shaped schools get admins by default, which flatters any admin rule. The admin rule stays off until real data says otherwise.
-- **localtunnel URLs change on restart.** When you reboot, update the 4 HTTP Request nodes across the two API-calling workflows in n8n.
+- **localtunnel URLs change on restart.** When you reboot, update the 5 HTTP Request nodes across the two API-calling workflows in n8n.
+- **The n8n weekly workflow changed on the `ui` branch.** It no longer sends today's date (the API now rejects dates outside the simulated year); it uses the API's demo date. Re-import `n8n/kindling_weekly.json` into n8n, or its Monday run will get 400s.
 - **Stalled schools are unbeatable.** Schools that look like buyers but never buy (budget freeze) are indistinguishable from real buyers. This is the honest precision ceiling — not a bug.
 - **outreach_log.json is a flat file.** Fine for testing; in production this would live in a database.
