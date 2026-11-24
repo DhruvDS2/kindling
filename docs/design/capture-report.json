@@ -1,0 +1,43 @@
+{
+  "generated_at": "2026-11-24T03:46:40.245Z",
+  "longTasks": {
+    "week step · Ready (Ready filter)": {
+      "count": 0,
+      "maxMs": 0
+    },
+    "week step · Ready (All 85 rows)": {
+      "count": 2,
+      "maxMs": 148
+    },
+    "drawer open": {
+      "count": 1,
+      "maxMs": 92
+    },
+    "drawer page (j)": {
+      "count": 1,
+      "maxMs": 51
+    },
+    "page switch → Backtest": {
+      "count": 2,
+      "maxMs": 107
+    }
+  },
+  "reducedMotionAnimatedProps": {
+    "week step": [
+      "backgroundColor",
+      "color",
+      "opacity"
+    ],
+    "drawer open": [
+      "opacity"
+    ],
+    "page switch": [
+      "color",
+      "opacity"
+    ]
+  },
+  "problems": [
+    "reduced motion · week step: animates backgroundColor, color",
+    "reduced motion · page switch: animates color"
+  ]
+}
