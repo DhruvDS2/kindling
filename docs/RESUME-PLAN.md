@@ -1,127 +1,108 @@
-# Resume plan: kindling-ui-upgrade (paused 2026-11-23)
+# Resume plan: kindling-ui-upgrade (paused 2026-11-23, second pause)
 
-> **Update, same day (resumed):**
-> - Phase 1 is DONE and merged into `ui-upgrade` (`e4a4499`). It passed every gate. "Ready" is warm ochre: #80560F light, #E0B25C dark.
-> - The cross-lane contract `frontend/src/drawerList.tsx` was added (`23827fe`).
-> - **Phase 2 is running:** 5 lanes in `.worktrees/lane-{a-shell,b-brief-ready,c-risk-drawer,d-backtest,e-secondary}`, on branches `ui-upgrade-lane-*`, ports 8401–8405 / 5401–5405.
-> - If paused again: commit each lane worktree as "wip: paused", push the lane branches, and resume each lane from its branch. File ownership is in each lane's brief (recorded in the session); in short:
->   - A: App/main/asOf/nav/index.css/shell
->   - B: MondayBrief/ReadyToBuy/ScoreChip
->   - C: AtRisk/AccountDetail/detail
->   - D: Backtest/backtest
->   - E: Prospects/Pipeline/Automations
-
-
-The run spec is `docs/UI-UPGRADE-RUN.md`. Decisions live in `DESIGN.md` (§2 references with Details IDs, §3 behavior specs, §4 motion tokens, §8 banned list). Option history is in `docs/design/OPTIONS.md`.
+Spec: `docs/UI-UPGRADE-RUN.md`. Decisions: `DESIGN.md` (§2 references with Details IDs, §3 behavior specs, §4 motion, §5–§6 tokens and components, §7 rules, §8 banned list).
 
 ## Where we are
-**Phase 1 (tokens + base components): in progress, paused mid-lane.**
-- Phase 0 (audit, options, picks) is done and committed.
-- Phase 2 (5 screen lanes) and Phase 3 (QA + gate) have not started.
+**Phase 3 (QA + gate): in progress.**
+- Phases 0, 1 and 2 are done and merged into `ui-upgrade`.
+- The only open piece of work is the perf pass (`ui-upgrade-p3-perf`, WIP, not merged). After it: the final capture and the gate doc.
 
-| Branch | Commit | State |
+| Branch | Head | State |
 |---|---|---|
-| `main` | `1235173` | Untouched by this run |
-| `ui` | `19e7830` | Untouched by this run (the previous UI run, gate PASSED) |
-| `ui-upgrade` | the commit that adds this file | Phase 0 docs, DESIGN.md, this plan. Pushed |
-| `ui-upgrade-p1-base` | `f88ff67` "wip: paused" | Phase 1 lane work in progress. Pushed. **Not merged** |
+| `main` | `1235173` | Untouched |
+| `ui` | `19e7830` | Untouched |
+| `ui-upgrade` | the commit adding this file | All of Phases 0–2 merged, plus the Phase 3 work so far. Pushed |
+| `ui-upgrade-p1-base` | `8b5ed70` | Phase 1. Merged |
+| `ui-upgrade-lane-a-shell` | `60b0f96` | Shell, week pager and ruler, 6A, code-split (263 kB initial JS). Merged |
+| `ui-upgrade-lane-b-brief-ready` | `8fc5e0b` | Brief and Ready. Merged |
+| `ui-upgrade-lane-c-risk-drawer` | `22c6665` | At risk and the drawer. Merged |
+| `ui-upgrade-lane-d-backtest` | `447d82d` | Backtest. Merged |
+| `ui-upgrade-lane-e-secondary` | `26da975` | Prospects, Pipeline, Automations. Merged |
+| `ui-upgrade-p3-perf` | `8f8190d` "wip: paused" | Perf pass. **Not merged; its gates haven't run yet** |
 
-Local worktree: `.worktrees/p1-base`, on `ui-upgrade-p1-base`. It has its own `node_modules` with `motion` 14.14, an empty `.env`, and its own DuckDB.
+Local worktrees remain in `.worktrees/` (lanes a–e are clean; `p3-perf` holds the WIP). Lanes a–e can be removed with `git worktree remove`; their branches are kept.
 
-## Locked picks (full detail and IDs in DESIGN.md §2)
-- **Structure:**
-  - 1A grouped sidebar, with the week pager in the top bar
-  - 2A columned table: sticky header, sort, skeleton rows, j/k
-  - 3B number + context line (Brief) · 3A ruled four-stat row (Backtest)
-  - 4A record properties + 4C pager (drawer)
-  - 5A line + grouped bars (drawer chart) · 5B labeled hero bar (Backtest)
-- **Motion:**
-  - 6A cross-fade page transitions
-  - 7A count-through numbers
-  - 8A travelling hover highlight · 8B one pale row action (Open · Copy email · Send to Slack, keyboard-reachable)
-  - 9A first-load skeleton fill
-  - 10B week ruler: under the pager, one tick per Monday, breaks shaded, click or drag to scrub. Gray, with ember only for the current week
-- **Drawer:** Preymaker (`d653fb4471a2412a8e4d903b8e7fad24`), taking its panel look, scrim and open/close motion. Adapted to a right-side clip wipe: open 320ms, close 200ms (DESIGN.md §3.1). Content stays 4A + 4C. The footer has "Next school →" wired to j/k.
-- **Week stepping (spec, no reference):**
-  - the table stays visible with an inline "Updating…" mark;
-  - rows swap in place, and re-ranked rows slide to their new position;
-  - no skeleton after first load.
-- **Color rule:** we take motion only, so a reference's colors never disqualify it.
+## Phase 3 done so far (on `ui-upgrade`)
+- **Token lint is 0 across `src/`** (it was 862). Deprecated aliases, the legacy `Skeleton.tsx` and the `.skeleton` CSS are gone.
+- **Dark break/summer shades lifted:** 1.32 / 1.13:1, matching light.
+- **One root `ToastProvider`.**
+- **`npm run design:capture`** (`frontend/scripts/design-capture.mjs`) produces:
+  - after-screenshots, light and dark, into `docs/design/after/`;
+  - 3 videos into `docs/design/videos/`;
+  - long-task and reduced-motion checks into `docs/design/capture-report.json`.
+- **The first capture ran.** Its after/ and videos/ folders are **local and uncommitted on purpose**: they're re-captured after the perf merge, and committing them twice would bloat the public repo.
+- **Docs:** `docs/design/COMPARE.md` (before / after / reference per screen); DESIGN.md documents the Phase 2 patterns.
+- **The banned-list grep is clean:** no emoji, placeholder copy, gradients, glass, colored alert borders or card shadows; motion ≤320ms (600ms only for one-time chart reveals); radii 2/4/6 only.
+- **Reduced motion:** fades only (opacity and color). Verified by the capture.
+- **Reviewed by eye:** Brief, At risk, the dark Jan 5 drawer and Backtest look on-brief.
 
-## Phase 1 lane state (`ui-upgrade-p1-base`, from the lane's stop report)
-- **Done:**
-  - `frontend/src/design/tokens.css`: light and warm-dark color, type, space, size, radius, z-index, motion and reduced motion, with the old names kept as deprecated aliases.
-    - `--accent-strong` #B5421C, 5.3:1 on paper (ember text was 3.5:1, which failed). 0 AA failures in either theme.
-  - `frontend/src/design/base.css`, `motion.ts` (`dur`/`ease`/`tr`; no literal ms), `dates.ts`.
-  - `frontend/scripts/lint-tokens.mjs` plus `npm run lint:tokens`. Baseline: **862 findings** outside `src/design` (the screens), which Phase 2 burns down to 0.
-  - `docs/design/research/evidence-phase1.md`: notes for all 8 inspected references.
-- **Half-done:**
-  - **Before anything else:** `frontend/src/main.tsx` must import `./design/tokens.css` **before** `index.css`. The old `:root` colors were moved out of `index.css`, so on this WIP branch the screens currently render with no colors.
-  - `npm run styleguide:check` is declared in `package.json`, but `scripts/styleguide-check.mjs` doesn't exist yet.
-- **Not started:**
-  - every component in `frontend/src/design/components/` (empty);
-  - the dev-only `/__styleguide` route;
-  - the Playwright check and the styleguide screenshots (`docs/design/styleguide/`);
-  - DESIGN.md §5–§7;
-  - the Phase 1 gates.
-  - Component plan: `k-`-prefixed CSS classes, motion values via `motion.ts`, and stagger delays via numeric CSS variables × `--stagger-row`.
-- **Decision to review on resume:** the lane made the "Ready" status color a petrol blue (#1F6A86), separate from the ember accent. Ember is now only "act on this". Confirm, or ask for a warmer status color.
-- **References already inspected; don't call `get_inspiration` again for these:**
-  - `d653fb4471a2412a8e4d903b8e7fad24` (Preymaker)
-  - `9fc27e0cc796475cbfbe169634192f2b` (Lassie)
-  - `9627d9b834f34941aa28a0eeb7445982` (Linear)
-  - `Y0VPNY276UbNgPlkXkpnKz` (Sui)
-  - `274e851af7a54b8395cc6212b2586452` (Paradigm)
-  - `ecSttagJdpcXow3QAxKwha` (Terminal Industries)
-  - `b136df2f789242cabc6bb9f9678d5f82` (Eleken)
-  - `dcdab50fb7bc47d480acbacf3cee8c4c` (Playground)
-
-  Still to inspect in Phase 2:
-  - `72fa6ef47c9c457c8dca22242e11c89a` (Stripe 3A, lane D)
-  - `vv6RCiVeskBADYBiDAVmwm` (Effortel 5B, lane D)
-  - `cbd2a5b294bd45fe8925c9d1abccda21` (Auar 3B, lane B)
-  - `926aafb981e2477e972d50500c79fc47` (Index 5A, lane C)
-  - `09667cf64a0f4ecdad4fa77b2c9f6e6d` (V7 Labs 6A, lane A)
+## Perf: what we know
+- The first capture (dev server, a heavily loaded machine with 5 lanes running) saw long tasks:
+  - 85-row week step: 148ms
+  - drawer open: 92ms
+  - drawer `j`: 51ms
+  - page switch to Backtest: 107ms
+- The perf lane found that **in the production build every transition was already under 50ms of CPU** (14–33ms). The long tasks were mostly machine contention plus dev-mode React.
+- Its WIP changes on `ui-upgrade-p3-perf`:
+  - cached motion tokens and formatters;
+  - `Why` sorts without `localeCompare`;
+  - Table re-renders only changed rows and layout-animates only rows near the viewport;
+  - week updates are deferred and interruptible;
+  - drawer transitions, and the Backtest chunk preloads at idle;
+  - Backtest sections mount one per idle turn (`Deferred.tsx`).
+  - In dev: 85-row step ~170 → ~37ms; drawer open 82–122 → ~74ms. Some changes are only tsc- and lint-checked.
+- Its measurement scripts are in `frontend/scripts/perf-wip/` on that branch. Its next steps:
+  - set the Table first-load reveal during render, not in a layout effect;
+  - pass the drawer body its last measured width;
+  - maybe let NumberFlow write text directly.
 
 ## What's left
-1. **Finish Phase 1:**
-   - Add the `tokens.css` import.
-   - Build the base components (full list in the run spec and DESIGN.md §3) and the `/__styleguide` route.
-   - Run the Playwright behavior check (drawer Esc and focus, j/k, ruler ←/→, reduced motion) and take light and dark styleguide screenshots.
-   - Write DESIGN.md §5–§7.
-   - Pass the gates: build 0 errors, pytest green, `lint:tokens` 0 inside `src/design`, `npm run screenshots` clean.
-2. **Merge** `ui-upgrade-p1-base` into `ui-upgrade`, then run `npm install` in the main `frontend/` (for `motion`).
-3. **Phase 2,** 5 parallel lanes, each in its own worktree cut from `ui-upgrade`, importing only from the base:
-   - A: shell, transitions, the date control wiring, code-splitting (<300 kB initial JS)
-   - B: Brief + Ready
-   - C: At risk + drawer
-   - D: Backtest
-   - E: Prospects / Pipeline / Automations
-4. **Phase 3:**
-   - Gates: build 0 errors, pytest green, `npm run screenshots` clean, `lint:tokens` 0 everywhere.
-   - After-screenshots in light and dark plus `docs/design/COMPARE.md`.
-   - 3 Playwright videos.
-   - Self-review against the banned list and the 10 audit problems.
-   - Perf and reduced-motion checks.
-   - `docs/gates/UI-UPGRADE-GATE.md` with a ≤40-line CONTEXT FOR CLAUDE block. Then STOP.
+1. **Finish the perf branch** (`.worktrees/p3-perf`).
+   - Run its gates: tsc, `npm run build` (initial JS < 300 kB), pytest, `lint:tokens` 0, `npm run screenshots`, and a behavior check. The behavior check confirms: visible rows still slide, the drawer still wipes and pages without a re-wipe, Backtest bars grow once, and reduced motion is fades only.
+   - **Measure long tasks against a production build on a quiet machine**, with nothing else running: `vite build` + `vite preview`, not the dev server.
+   - Merge it if it passes; drop any experiment that doesn't help.
+2. **Re-run `npm run design:capture` against the production preview,** then commit `docs/design/after/`, `docs/design/videos/` and `capture-report.json`.
+3. **Optional base follow-ups** that lanes worked around locally:
+   - WeekPager `testid` prop
+   - `LazyMotion` / `m.*`
+   - move the view-transition root fix into `PageTransition.css`
+   - SegmentedControl small size
+   - a Nav hover callback
+   - a Drawer exit-complete callback
+   - stop arrow-key propagation in the Drawer
+   - a focus fallback
+   - remove the unused Tailwind directives in `index.css`
+4. **Write `docs/gates/UI-UPGRADE-GATE.md`:**
+   - the verdict, with main/ui hashes unchanged;
+   - the gates table;
+   - the perf table (prod and dev) and reduced motion;
+   - the self-review: the banned list and the 10 audit problems, each FIXED or NOT FIXED with a screenshot;
+   - follow-ups and preview commands;
+   - a "CONTEXT FOR CLAUDE" block of ≤ 40 lines.
 
-## Safety rules (unchanged)
-- Never commit to, merge into, rebase, reset or push `main` or `ui`. Pushing `ui-upgrade` and its lane branches is allowed (no force).
-- Frontend only. `types.ts` is frozen. Every number comes from the API.
-- Run the API with `N8N_NOTIFY_WEBHOOK= SLACK_WEBHOOK_SALES= SLACK_WEBHOOK_CS= ANTHROPIC_API_KEY=`.
-- Lane worktrees need an empty `.env`, `python3 -m kindling.simulate`, and their own `node_modules` (`cp -cR`, never a symlink).
-- `docs/design/refs/` is gitignored (third-party frames; the repo is public). Re-download it from the Details links if needed.
+   Push `ui-upgrade`. **STOP.**
+
+## Notes
+- **The Details MCP is out of monthly credits.** Every reference is already recorded (DESIGN.md §2, `docs/design/research/`), so no more calls are needed.
+- **Picks are locked:**
+  - Structure: 1A, 2A, 3B / 3A, 4A + 4C, 5A / 5B.
+  - Motion: 6A, 7A, 8A + 8B, 9A, 10B; Preymaker drawer.
+  - "Ready" is warm ochre (#80560F light, #E0B25C dark); ember is the single accent.
+- **Safety, unchanged:**
+  - Never commit to, merge into, rebase, reset or push `main` or `ui`.
+  - Frontend only; `types.ts` is frozen; every number comes from the API.
+  - Run the API with `N8N_NOTIFY_WEBHOOK= SLACK_WEBHOOK_SALES= SLACK_WEBHOOK_CS= ANTHROPIC_API_KEY=`.
+  - Each worktree needs an empty `.env`, `python3 -m kindling.simulate`, and its own `node_modules` (`cp -cR`).
 
 ## Resume
 ```bash
 cd ~/personal-projects/kindling
 git fetch origin && git switch ui-upgrade && git pull --ff-only
-git worktree list                      # expect .worktrees/p1-base on ui-upgrade-p1-base
-# if the worktree is gone (e.g. a fresh machine):
-#   git worktree add .worktrees/p1-base ui-upgrade-p1-base && : > .worktrees/p1-base/.env
-#   (cd frontend && npm install) && cp -cR frontend/node_modules .worktrees/p1-base/frontend/node_modules
-#   (cd .worktrees/p1-base/frontend && npm install) && (cd .worktrees/p1-base && python3 -m kindling.simulate)
+git worktree list          # .worktrees/p3-perf should be on ui-upgrade-p3-perf (8f8190d)
+# if missing: git worktree add .worktrees/p3-perf ui-upgrade-p3-perf && : > .worktrees/p3-perf/.env \
+#   && (cd frontend && npm install) && cp -cR frontend/node_modules .worktrees/p3-perf/frontend/node_modules \
+#   && (cd .worktrees/p3-perf && python3 -m kindling.simulate)
 claude
 ```
 Then paste into Claude Code:
-> Resume RUN kindling-ui-upgrade (docs/UI-UPGRADE-RUN.md) from docs/RESUME-PLAN.md. Finish Phase 1 on branch ui-upgrade-p1-base in .worktrees/p1-base: first add the tokens.css import in main.tsx, then the base components, /__styleguide, the Playwright check and DESIGN.md §5–§7, and pass the Phase 1 gates. Merge into ui-upgrade, then run the Phase 2 lanes and Phase 3. Same safety rules; don't re-inspect the 8 references already in evidence-phase1.md.
+> Resume RUN kindling-ui-upgrade from docs/RESUME-PLAN.md (Phase 3). Finish and validate the perf branch ui-upgrade-p3-perf: run its gates, measure long tasks on a production build with nothing else running, and merge it if it passes. Then re-run npm run design:capture against the prod preview, commit the after-shots and videos, write docs/gates/UI-UPGRADE-GATE.md with the self-review and a ≤40-line CONTEXT FOR CLAUDE, push ui-upgrade, and STOP. Same safety rules.
