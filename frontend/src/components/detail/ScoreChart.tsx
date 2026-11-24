@@ -2,7 +2,7 @@
 // time frame as the usage chart, with the status line from /meta.
 import { useMemo, useState } from 'react';
 import type { HistoryPoint } from '../../types';
-import { type Span, dayNum, flagFor, weekday } from './model';
+import { type Span, dayNum, flagFor, short, weekday } from './model';
 import { MonthAxis, Shading, YTicks } from './timeAxis';
 import { COLORS, MONO, PAD_L, makeX } from './scale';
 import { ChartTip, Key, TipRow } from './ui';
@@ -64,7 +64,7 @@ export default function ScoreChart({ width, kind, threshold, kindling, naive, d0
           const lastPt = s.points.at(-1);
           return (
             <Key key={s.key} swatch={{ background: s.color, height: 3 }}>
-              {s.name}{lastPt && <> · <span style={{ fontFamily: MONO, color: 'var(--ink)' }}>{lastPt.score} {lastPt.status}</span></>}
+              {s.name}{lastPt && <> · <span style={{ fontFamily: MONO, color: 'var(--ink)' }}>{lastPt.score} {lastPt.status}</span>{dayNum(lastPt.as_of) !== asOf && ` on ${short(lastPt.as_of)}`}</>}
             </Key>
           );
         })}
