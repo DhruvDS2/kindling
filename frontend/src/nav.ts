@@ -1,3 +1,5 @@
+import { formatDate } from './design/dates';
+
 export type Screen = 'brief' | 'ready' | 'risk' | 'backtest' | 'automations' | 'pipeline' | 'prospects';
 
 export const SCREENS: Screen[] = ['brief', 'ready', 'risk', 'pipeline', 'prospects', 'backtest', 'automations'];
@@ -24,7 +26,7 @@ export function parseDay(day: string): Date {
 }
 
 export function fmtDay(day: string, opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' }) {
-  return parseDay(day).toLocaleDateString('en-US', opts);
+  return formatDate(parseDay(day), opts);   // cached formatter (perf, see design/dates.ts)
 }
 
 /** True for a known screen id (e.g. a data-nav value). */

@@ -3,6 +3,7 @@ import { EmptyState, ErrorState } from '../design';
 import type { BacktestData, BacktestResults, ResultsRun } from '../types';
 import { fetchBacktest, fetchBacktestResults } from '../api';
 import { useAsOf } from '../asOf';
+import { Deferred } from '../components/backtest/Deferred';
 import DistrictExperiment from '../components/backtest/DistrictExperiment';
 import Experiments from '../components/backtest/Experiments';
 import { Headline, HeadlineStats } from '../components/backtest/Headline';
@@ -67,7 +68,10 @@ export default function Backtest() {
           onRetry={() => void weekly.refetch()}
           retrying={weekly.isFetching}
         />
-      ) : weekly.data ? <WeeklyAlertsChart data={weekly.data} /> : <ChartSkeleton />}
+      ) : weekly.data ? (
+        // Perf: the recharts chart mounts in its own turn (Deferred), never with the rest of the page.
+        <Deferred fallback={<ChartSkeleton />}><WeeklyAlertsChart data={weekly.data} /></Deferred>
+      ) : <ChartSkeleton />}
     </Section>
   );
 
@@ -123,6 +127,8 @@ export default function Backtest() {
           intro={<p>Every row of each results file, exactly as backtest.py wrote it, including the rows where the naive model wins. The better number on a row is set darker.</p>}
         >
           {loading ? <TableSkeleton /> : (
+            // Perf: below the fold, so it mounts in its own turn after the headline, stats and bars.
+            <Deferred fallback={<TableSkeleton />}>
             <div className="bt-tables">
               {headline.map(run => (
                 <div key={run.id} className="bt-run" data-run={run.id}>
@@ -135,14 +141,16 @@ export default function Backtest() {
                 </div>
               ))}
             </div>
+            </Deferred>
           )}
         </Section>
       )}
 
       {weeklySection}
 
-      {district && <DistrictExperiment run={district} />}
-      {!loading && <Experiments runs={runs} />}
+      {/* Perf: the experiments are the bottom of the page; each mounts in its own turn. */}
+      {district && <Deferred><DistrictExperiment run={district} /></Deferred>}
+      {!loading && <Deferred><Experiments runs={runs} /></Deferred>}
     </div>
   );
 }

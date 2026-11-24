@@ -2,7 +2,7 @@
 // properties, the 4C pager from the list the rep came from (DrawerListContext), the 5A
 // usage chart with the school-day / calendar-day toggle, and the score history. Opened from
 // At risk (type="health") and Ready (type="pql"); the props stay { type, school, onClose }.
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { startTransition, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PqlScore, HealthScore } from '../types';
 import { notifySlack, fetchSchool, fetchSchoolHistory, fetchSchoolUsage, fetchCalendar } from '../api';
@@ -44,6 +44,9 @@ function SchoolDrawer({ type, school, onClose }: Props) {
   // The window mode carries over when the pager moves; a ref, so toggling never re-renders the drawer.
   const modeRef = useRef<WindowMode>('school_days');
   const rememberMode = useCallback((m: WindowMode) => { modeRef.current = m; }, []);
+  // The body width carries over too (perf): the next page's charts render at it straight away.
+  const widthRef = useRef(0);
+  const rememberWidth = useCallback((w: number) => { widthRef.current = w; }, []);
   const returnRef = useRef<HTMLElement | null>(null);
   // Charts wipe in once, for the school the drawer opened on; paging cross-fades instead.
   const [firstId] = useState(id);
@@ -52,7 +55,8 @@ function SchoolDrawer({ type, school, onClose }: Props) {
   // with chart layout (their data is already being fetched meanwhile).
   const [settled, setSettled] = useState(false);
   useEffect(() => {
-    const t = window.setTimeout(() => setSettled(true), durMs('slow'));
+    // Perf (Phase 3): the charts mount as a transition, so their render is sliced, not one task.
+    const t = window.setTimeout(() => startTransition(() => setSettled(true)), durMs('slow'));
     return () => window.clearTimeout(t);
   }, []);
   if (id !== firstId && !paged) setPaged(true);
@@ -132,7 +136,8 @@ function SchoolDrawer({ type, school, onClose }: Props) {
       nextLink={nextId ? { label: 'Next school', onClick: () => list!.open(nextId) } : undefined}
       footer={<Actions key={id} kind={kind} schoolId={id} name={school.name} canSend={!!live} />}
     >
-      <DrawerBody type={type} school={school} initialMode={modeRef.current} onModeChange={rememberMode} reveal={!paged} settled={settled} />
+      <DrawerBody type={type} school={school} initialMode={modeRef.current} onModeChange={rememberMode} reveal={!paged} settled={settled}
+        initialWidth={widthRef.current} onWidth={rememberWidth} />
     </Drawer>
   );
 }
@@ -142,12 +147,14 @@ function SchoolDrawer({ type, school, onClose }: Props) {
 const sameSchool = (id: string) =>
   <T,>(prev: T | undefined, prevQuery: { queryKey: readonly unknown[] } | undefined) => (prevQuery?.queryKey[1] === id ? prev : undefined);
 
-function DrawerBody({ type, school, initialMode, onModeChange, reveal, settled }: {
+function DrawerBody({ type, school, initialMode, onModeChange, reveal, settled, initialWidth, onWidth }: {
   type: 'pql' | 'health'; school: School; initialMode: WindowMode; onModeChange: (m: WindowMode) => void; reveal: boolean; settled: boolean;
+  initialWidth: number; onWidth: (w: number) => void;
 }) {
   const { asOf, meta } = useAsOf();
   const id = school.school_id;
-  const [bodyRef, width] = useWidth();
+  const [bodyRef, width] = useWidth(initialWidth);
+  useEffect(() => { if (width) onWidth(width); }, [width, onWidth]);
 
   const detailQ = useQuery({ queryKey: schoolKey(id, asOf), queryFn: () => fetchSchool(id, asOf), placeholderData: sameSchool(id) });
   const usageQ = useQuery({ queryKey: usageKey(id, asOf), queryFn: () => fetchSchoolUsage(id, asOf), placeholderData: sameSchool(id) });

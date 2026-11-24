@@ -49,7 +49,10 @@ export interface NumberFlowProps extends CountThroughOptions {
   className?: string;
 }
 
-const defaultFormat = (n: number) => Math.round(n).toLocaleString('en-US');
+// Perf (Phase 3): one cached formatter instead of toLocaleString() per frame per number (an 85-row
+// week step formats ~170 numbers every frame of the count-through). Same output.
+const INT = new Intl.NumberFormat('en-US');
+const defaultFormat = (n: number) => INT.format(Math.round(n));
 
 /** A metric that counts through to its new value, in tabular figures so the width never jumps. */
 export function NumberFlow({ value, format = defaultFormat, placeholder = '—', className, reveal }: NumberFlowProps) {

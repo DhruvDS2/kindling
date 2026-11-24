@@ -133,7 +133,10 @@ const perf = {};
 const reduced = {};
 {
   const { ctx, page } = await newPage({ colorScheme: 'light', reducedMotion: 'reduce' });
-  const animatedProps = () => page.evaluate(() => [...new Set(document.getAnimations().flatMap(a => {
+  // 0s animations move nothing: the View Transition groups (::view-transition-group(root / k-page))
+  // carry the UA's width/height/transform keyframes at a duration of 0s (PageTransition.css), on
+  // every build. The sample only lands inside one when the screen chunk is already loaded.
+  const animatedProps = () => page.evaluate(() => [...new Set(document.getAnimations().filter(a => (a.effect?.getComputedTiming?.().duration ?? 1) > 0).flatMap(a => {
     const kf = a.effect?.getKeyframes?.() ?? []; return kf.flatMap(k => Object.keys(k).filter(p => !['offset', 'easing', 'composite', 'computedOffset'].includes(p)));
   }))]);
   const during = async (label, act) => { await act(); await page.waitForTimeout(60); reduced[label] = await animatedProps(); await page.waitForTimeout(800); };

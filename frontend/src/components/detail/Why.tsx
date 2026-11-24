@@ -84,7 +84,9 @@ function signals(kind: 'pql' | 'health', threshold: number, k: HistoryPoint[], n
   if (!extra.length && !missed.length && both.length) {
     out.push({ date: both[0].as_of, text: `Calendar days and school days agreed on the status every Monday (${plural(both.length, 'week')}).` });
   }
-  return out.sort((a, b) => b.date.localeCompare(a.date));
+  // ISO dates sort as plain strings. Perf (Phase 3): localeCompare() built an ICU collator on the
+  // first call, ~19ms of the frame that mounts the drawer charts.
+  return out.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 }
 
 export function Signals({ kind, threshold, kindling, naive }: { kind: 'pql' | 'health'; threshold: number; kindling: HistoryPoint[]; naive: HistoryPoint[] }) {
