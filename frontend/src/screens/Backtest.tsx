@@ -3,6 +3,8 @@ import { EmptyState, ErrorState } from '../design';
 import type { BacktestData, BacktestResults, ResultsRun } from '../types';
 import { fetchBacktest, fetchBacktestResults } from '../api';
 import { useAsOf } from '../asOf';
+import DistrictExperiment from '../components/backtest/DistrictExperiment';
+import Experiments from '../components/backtest/Experiments';
 import { Headline, HeadlineStats } from '../components/backtest/Headline';
 import HeroBars from '../components/backtest/HeroBars';
 import MissingRuns from '../components/backtest/MissingRuns';
@@ -11,7 +13,7 @@ import { BarsSkeleton, ChartSkeleton, HeadSkeleton, StatsSkeleton, TableSkeleton
 import ResultsTable from '../components/backtest/ResultsTable';
 import { Section } from '../components/backtest/Section';
 import WeeklyAlertsChart, { WeeklyTakeaway } from '../components/backtest/WeeklyAlertsChart';
-import { HEADLINE_RUNS, display, findTable } from '../components/backtest/metrics';
+import { DISTRICT_RUN, HEADLINE_RUNS, display, findTable } from '../components/backtest/metrics';
 import '../components/backtest/backtest.css';
 
 // An editorial results page. Every number on it comes from GET /backtest/results (the
@@ -43,6 +45,7 @@ export default function Backtest() {
   const missing = results.data?.missing ?? [];
   const pql = runs.find(r => r.id === HEADLINE_RUNS.pql);
   const health = runs.find(r => r.id === HEADLINE_RUNS.health);
+  const district = runs.find(r => r.id === DISTRICT_RUN);
   const headline = [pql, health].filter((r): r is ResultsRun => !!r);
   const loading = results.isLoading;
 
@@ -138,6 +141,8 @@ export default function Backtest() {
 
       {weeklySection}
 
+      {district && <DistrictExperiment run={district} />}
+      {!loading && <Experiments runs={runs} />}
     </div>
   );
 }
