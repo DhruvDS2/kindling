@@ -1,0 +1,9 @@
+/* Only the content region takes part; the root snapshot (nav, top bar) does not animate. */
+.k-page { view-transition-name: k-page; min-width: 0; }
+::view-transition-old(root),
+::view-transition-new(root) { animation: none; }
+::view-transition-old(k-page) { animation: k-vt-out var(--motion-fast) var(--ease-exit) both; }
+::view-transition-new(k-page) { animation: k-vt-in var(--motion-fast) var(--ease-enter) calc(var(--motion-fast) / 2) both; }
+::view-transition-group(k-page) { animation-duration: 0s; }
+@keyframes k-vt-out { to { opacity: 0; } }
+@keyframes k-vt-in { from { opacity: 0; } }

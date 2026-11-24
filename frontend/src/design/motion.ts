@@ -55,3 +55,8 @@ export function stagger(name: 'row' | 'cell'): number {
 export function useReduce(): boolean {
   return useReducedMotion() ?? false;
 }
+
+/** The entrance travel distance (--rise) in px; 0 under reduced motion. */
+export function risePx(): number {
+  return parseFloat(readToken('--rise', false)) || 0;
+}

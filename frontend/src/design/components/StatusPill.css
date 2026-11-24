@@ -1,0 +1,15 @@
+.k-pill {
+  display: inline-flex;
+  align-items: center;
+  height: var(--size-pill);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-2);
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+.k-pill--ready { color: var(--status-ready-fg); background: var(--status-ready-bg); }
+.k-pill--risk { color: var(--status-risk-fg); background: var(--status-risk-bg); }
+.k-pill--healthy { color: var(--status-healthy-fg); background: var(--status-healthy-bg); }
+.k-pill--neutral { color: var(--status-neutral-fg); background: var(--status-neutral-bg); }

@@ -1,0 +1,160 @@
+/* The table sits on the page: no box. The wrapper bleeds one cell-padding to each side so text
+   aligns with the page's left edge while the hover highlight extends a little past it. */
+.k-table-wrap {
+  position: relative;
+  isolation: isolate;
+  margin: 0 calc(var(--space-1-5) * -1);
+}
+.k-table__hl {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 0;
+  background: var(--bg-hover);
+  pointer-events: none;
+}
+.k-table {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.k-table th {
+  position: sticky;
+  top: var(--k-sticky-top, 0);
+  z-index: var(--z-sticky);
+  height: var(--size-control);
+  padding: 0 var(--space-1-5);
+  background: var(--k-table-bg, var(--bg-page));
+  border-bottom: var(--size-hairline) solid var(--border-hairline);
+  text-align: left;
+  vertical-align: middle;
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  font-weight: var(--weight-strong);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.k-table th.is-num { text-align: right; }
+.k-table__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-0-5);
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-1);
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: color var(--motion-fast) var(--ease-enter);
+}
+.k-table th.is-num .k-table__sort { flex-direction: row-reverse; }
+.k-table__sort:hover, .k-table__sort.is-on { color: var(--text-primary); }
+.k-table__sort-icon { display: inline-flex; opacity: 0; transition: opacity var(--motion-fast) var(--ease-enter); }
+.k-table__sort:hover .k-table__sort-icon, .k-table__sort:focus-visible .k-table__sort-icon, .k-table__sort.is-on .k-table__sort-icon { opacity: 1; }
+
+.k-table td {
+  padding: var(--space-1-5);
+  vertical-align: top;
+  border-bottom: var(--size-hairline) solid var(--border-faint);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  letter-spacing: var(--tracking-md);
+  color: var(--text-primary);
+  min-width: 0;
+  overflow: hidden;
+}
+.k-table td.is-num { text-align: right; white-space: nowrap; }
+
+.k-table__row { outline: none; }
+.k-table__row.is-openable { cursor: pointer; }
+.k-table__row:focus-visible { box-shadow: inset 0 0 0 var(--size-focus-ring) var(--focus-ring); }
+.k-table__row.is-selected { background: var(--bg-press); }
+.k-table__row[data-crossed] { animation: k-crossed var(--motion-slow) var(--ease-exit) var(--motion-slow) both; }
+@keyframes k-crossed { from { background-color: var(--accent-subtle); } to { background-color: transparent; } }
+
+/* 9A first load: cells arrive in reading order, rows 30ms apart (first 10), opacity plus --rise. */
+.k-table-wrap.is-revealing .k-table__row > td {
+  animation: k-rise-in var(--motion-base) var(--ease-enter) both;
+  animation-delay: calc(var(--k-i) * var(--stagger-row) + var(--k-j) * var(--stagger-cell));
+}
+
+.k-table__skeleton { display: flex; flex-direction: column; gap: var(--space-0-5); }
+.k-table__skeleton.is-num { align-items: flex-end; }
+
+.k-table__message-row td { padding: 0 var(--space-1-5); border-bottom: 0; overflow: visible; }
+
+.k-table__divider td { padding: var(--space-1) var(--space-1-5); border-bottom: 0; }
+.k-table__divider-inner { display: flex; align-items: center; gap: var(--space-1-5); }
+.k-table__divider-label {
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.k-table__divider-rule { flex: 1; height: var(--size-hairline); background: var(--border-strong); }
+.k-table__divider--accent .k-table__divider-rule { background: var(--accent); }
+
+/* 8B: one pale action group at the row's right end, on hover or keyboard focus. */
+.k-table__actions-col { width: 0; }
+.k-table__actions-col--reserve { width: var(--size-row-actions); }
+.k-table__actions-th { padding: 0; }
+.k-table td.k-table__actions { position: relative; padding: 0; overflow: visible; vertical-align: middle; }
+.k-rowactions {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-1-5) 0 var(--space-2);
+  background: var(--bg-hover);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-fast) var(--ease-enter);
+}
+.k-table__row.is-selected .k-rowactions { background: var(--bg-press); }
+.k-rowactions__group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-focus-ring);
+  padding: var(--size-focus-ring);
+  border-radius: var(--radius-2);
+  background: var(--bg-subtle);
+  box-shadow: 0 0 0 var(--size-hairline) var(--border-hairline);
+  white-space: nowrap;
+}
+.k-table td.is-reserved { padding: var(--space-1) var(--space-1-5); }
+.is-reserved .k-rowactions { position: static; justify-content: flex-end; padding: 0; background: none; }
+.k-table__row:hover .k-rowactions,
+.k-table__row:focus-within .k-rowactions,
+.k-table__row.is-hover .k-rowactions { opacity: 1; pointer-events: auto; }
+.k-rowactions__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-0-5);
+  height: var(--size-control-sm);
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-1);
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+  transition: background-color var(--motion-fast) var(--ease-enter), color var(--motion-fast) var(--ease-enter);
+}
+.k-rowactions__btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
+.k-rowactions__btn:active:not(:disabled) { background: var(--bg-press); }
+.k-rowactions__btn:disabled { color: var(--text-disabled); cursor: not-allowed; }
+.k-rowactions__kbd { font-family: var(--font-sans); font-size: var(--text-label); font-weight: var(--weight-regular); color: var(--text-tertiary); }

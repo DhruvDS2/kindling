@@ -1,0 +1,77 @@
+.k-weekpager { display: inline-flex; align-items: center; gap: var(--space-0-5); }
+.k-weekpager__label {
+  min-width: 16ch;
+  text-align: center;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  letter-spacing: var(--tracking-md);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+/* Week ruler: gray only; ember is reserved for the current-week mark. */
+.k-ruler {
+  position: relative;
+  height: var(--size-ruler);
+  padding: var(--space-0-5) var(--space-1) 0;
+  border-radius: var(--radius-2);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+.k-ruler.is-dragging { cursor: grabbing; }
+.k-ruler.is-disabled { cursor: not-allowed; }
+.k-ruler__track { position: relative; height: var(--space-3); }
+.k-ruler__base { position: absolute; left: 0; right: 0; bottom: 0; height: var(--size-hairline); background: var(--border-strong); }
+.k-ruler__band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--k-a) * 100%);
+  width: calc((var(--k-b) - var(--k-a)) * 100%);
+  background: var(--data-break);
+}
+.k-ruler__band--summer { background: var(--data-summer); }
+.k-ruler__tick {
+  position: absolute;
+  bottom: 0;
+  left: calc(var(--k-x) * 100%);
+  width: var(--size-hairline);
+  height: var(--space-1);
+  background: var(--border-strong);
+}
+.k-ruler__tick.is-month { height: var(--space-1-5); background: var(--text-tertiary); }
+.k-ruler__handle, .k-ruler__ghost {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--k-x) * 100%);
+  width: var(--size-focus-ring);
+  margin-left: calc(var(--size-hairline) * -1);
+  background: var(--text-primary);
+  border-radius: var(--radius-1);
+}
+.k-ruler__ghost { background: var(--border-strong); }
+.k-ruler.is-disabled .k-ruler__handle { background: var(--text-disabled); }
+.k-ruler__current {
+  position: absolute;
+  bottom: calc(var(--space-1) / -2);
+  left: calc(var(--k-x) * 100%);
+  width: var(--space-1);
+  height: var(--space-1);
+  margin-left: calc(var(--space-1) / -2);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 var(--size-focus-ring) var(--k-table-bg, var(--bg-page));
+}
+.k-ruler__labels { position: relative; height: var(--leading-label); margin-top: var(--space-0-5); }
+.k-ruler__month {
+  position: absolute;
+  top: 0;
+  left: calc(var(--k-x) * 100%);
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}

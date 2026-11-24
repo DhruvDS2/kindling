@@ -1,0 +1,68 @@
+.k-tabs { display: flex; gap: var(--space-3); border-bottom: var(--size-hairline) solid var(--border-hairline); }
+.k-tabs__tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--size-row);
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  letter-spacing: var(--tracking-md);
+  color: var(--text-tertiary);
+  transition: color var(--motion-fast) var(--ease-enter);
+}
+.k-tabs__tab:hover:not(:disabled) { color: var(--text-primary); }
+.k-tabs__tab.is-on { color: var(--text-primary); font-weight: var(--weight-medium); }
+.k-tabs__tab:disabled { color: var(--text-disabled); cursor: not-allowed; }
+.k-tabs__bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: var(--size-focus-ring);
+  background: var(--text-primary);
+}
+
+.k-seg {
+  display: inline-flex;
+  padding: var(--size-focus-ring);
+  gap: var(--size-focus-ring);
+  border-radius: var(--radius-2);
+  background: var(--bg-subtle);
+  border: var(--size-hairline) solid var(--border-faint);
+}
+.k-seg__opt {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--size-control-sm);
+  padding: 0 var(--space-1-5);
+  border: 0;
+  border-radius: var(--radius-1);
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  transition: color var(--motion-fast) var(--ease-enter);
+}
+.k-seg__opt:hover:not(:disabled) { color: var(--text-primary); }
+.k-seg__opt.is-on { color: var(--text-primary); font-weight: var(--weight-medium); }
+.k-seg__opt:disabled { color: var(--text-disabled); cursor: not-allowed; }
+.k-seg__thumb {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-1);
+  background: var(--bg-surface);
+  box-shadow: 0 0 0 var(--size-hairline) var(--border-hairline);
+}
+.k-choice__label, .k-choice__count { position: relative; }
+.k-choice__count { color: var(--text-tertiary); font-weight: var(--weight-regular); }

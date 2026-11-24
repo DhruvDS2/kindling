@@ -116,6 +116,7 @@
   --size-tooltip: 280px;
   --size-toast: 360px;
   --size-search: 240px;
+  --size-row-actions: 288px;   /* reserved width when row actions don't float */
   --size-content: 1200px;
 
   /* ── Radius: small; tables and panels mostly square ─────────────────── */
