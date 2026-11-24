@@ -1,23 +1,20 @@
 import type { ResultsRun } from '../../types';
 import { fmtRunTime } from './metrics';
 
-/** Where a results table came from: its file, when backtest.py wrote it, and at which commit. */
+/**
+ * Where a results table came from: its file, when backtest.py wrote it (in the viewer's
+ * time zone) and at which commit. Quiet, but always printed under the numbers it vouches for.
+ */
 export default function SourceStamp({ run }: { run: ResultsRun }) {
-  const item = { display: 'inline-flex', gap: 5, alignItems: 'baseline' } as const;
-  const key = { color: 'var(--muted)' } as const;
-  const val = { fontFamily: 'JetBrains Mono, monospace', color: 'var(--body)' } as const;
   return (
-    <div
-      data-testid="source-stamp"
-      style={{ display: 'flex', flexWrap: 'wrap', columnGap: 16, rowGap: 4, fontSize: 11.5, lineHeight: 1.5 }}
-    >
-      <span style={item}><span style={key}>Source</span><span style={val}>{run.source}</span></span>
-      <span style={item} title={run.generated_at}>
-        <span style={key}>Run</span><span style={val}>{fmtRunTime(run.generated_at)}</span>
+    <p className="bt-stamp" data-testid="source-stamp" data-run={run.id}>
+      <span className="bt-stamp__item"><span className="bt-stamp__key">Source</span> {run.source}</span>
+      <span className="bt-stamp__item">
+        <span className="bt-stamp__key">Run</span> <time dateTime={run.generated_at} title={run.generated_at}>{fmtRunTime(run.generated_at)}</time>
       </span>
-      <span style={item}>
-        <span style={key}>Commit</span><span style={val}>{run.commit ?? 'not recorded'}</span>
+      <span className="bt-stamp__item">
+        <span className="bt-stamp__key">Commit</span> {run.commit ? <span className="k-mono">{run.commit}</span> : 'not recorded'}
       </span>
-    </div>
+    </p>
   );
 }

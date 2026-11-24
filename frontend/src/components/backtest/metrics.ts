@@ -1,22 +1,17 @@
 // Helpers for reading the results files served by GET /backtest/results.
-// Nothing here computes a metric: every number on screen is a `display` string
-// that backtest.py wrote. These helpers only find rows, name columns, and decide
-// which of the already-printed values to set in bold.
+// Nothing here computes a metric. Every number on screen is a `display` string that
+// backtest.py wrote, found by row label and column name. `values` (the raw numbers next
+// to each display string) are only used to size bars and to decide which value is better.
 import type { ResultsRow, ResultsRun, ResultsTable } from '../../types';
-
-export const cardStyle = {
-  background: 'var(--card)',
-  border: '1px solid var(--line)',
-  borderRadius: 12,
-  padding: 24,
-} as const;
+import { fmtDay } from '../../nav';
 
 export const HEADLINE_RUNS = { pql: 'pql_backtest', health: 'health_backtest' } as const;
+export const DISTRICT_RUN = 'district_calendar_backtest';
 
 // District calendars first, then the admin rule, the threshold sweep, and LR vs rules
 // (docs/UI-RUN.md, decision 4). Runs the API adds later go after these, in API order.
 export const EXPERIMENT_ORDER = [
-  'district_calendar_backtest',
+  DISTRICT_RUN,
   'pql_admin_threshold',
   'threshold_sweep',
   'pql_lr_comparison',
@@ -39,11 +34,12 @@ export function columnRole(column: string): ColumnRole {
   return 'other';
 }
 
-export const ROLE_COLOR: Record<ColumnRole, string | null> = {
-  naive: 'var(--naive)',
-  kindling: 'var(--ember)',
-  other: null,
-};
+/** "Naive: 5+ tutors built" → "5+ tutors built": the naive rule, in backtest.py's words. */
+export function naiveRule(column: string | undefined): string | null {
+  if (!column) return null;
+  const rule = column.replace(/^naive\b:?\s*/i, '').trim();
+  return rule || null;
+}
 
 /** The row with this label, compared without case. */
 export function findRow(table: ResultsTable | undefined, label: string): ResultsRow | undefined {
@@ -51,9 +47,35 @@ export function findRow(table: ResultsTable | undefined, label: string): Results
   return table?.rows.find(r => r.label.toLowerCase() === want);
 }
 
-/** Index of the first column with this role, or -1. */
-export function columnIndex(table: ResultsTable | undefined, role: ColumnRole): number {
-  return table ? table.columns.findIndex(c => columnRole(c) === role) : -1;
+/** Index of the first column with this role, or matching this pattern; -1 when absent. */
+export function columnIndex(table: ResultsTable | undefined, col: ColumnRole | RegExp): number {
+  if (!table) return -1;
+  return table.columns.findIndex(c => (col instanceof RegExp ? col.test(c) : columnRole(c) === col));
+}
+
+/** The first table of a run whose title matches, or the first table when no pattern is given. */
+export function findTable(run: ResultsRun | undefined, title?: RegExp): ResultsTable | undefined {
+  if (!run) return undefined;
+  return title ? run.tables.find(t => t.title != null && title.test(t.title)) : run.tables[0];
+}
+
+/** The table whose rows are indexed by this name (e.g. "calendar", "threshold"). */
+export function findIndexedTable(run: ResultsRun | undefined, indexName: string): ResultsTable | undefined {
+  return run?.tables.find(t => t.index_name?.toLowerCase() === indexName.toLowerCase());
+}
+
+/** One cell as backtest.py printed it, found by row label and column; null when either is missing. */
+export function display(table: ResultsTable | undefined, label: string, col: ColumnRole | RegExp | number): string | null {
+  const row = findRow(table, label);
+  const i = typeof col === 'number' ? col : columnIndex(table, col);
+  if (!row || i < 0 || i >= row.display.length) return null;
+  return row.display[i];
+}
+
+/** The raw number behind a cell ("17 / 22" → 17/22). Used to size bars, never printed. */
+export function rawValue(row: ResultsRow | undefined, i: number): number | null {
+  if (!row || i < 0) return null;
+  return asNumber(row.values[i]);
 }
 
 /** Which way is better for a metric row, judged from its label. null = neither (counts like "schools flagged"). */
@@ -65,7 +87,7 @@ export function betterDirection(label: string): 'higher' | 'lower' | null {
 }
 
 /** "17 / 22" → 17/22, 0.77 → 0.77, anything else → null. */
-function asNumber(v: number | string | null): number | null {
+function asNumber(v: number | string | null | undefined): number | null {
   if (typeof v === 'number') return Number.isFinite(v) ? v : null;
   if (typeof v === 'string') {
     const m = v.match(/^\s*(-?[\d.]+)\s*\/\s*([\d.]+)\s*$/);
@@ -92,8 +114,46 @@ export function bestColumns(table: ResultsTable, row: ResultsRow): Set<number> {
   return new Set(nums.flatMap((n, i) => (n === best ? [i] : [])));
 }
 
+/** True when the naive column holds the better value on this row and Kindling doesn't. */
+export function naiveAhead(table: ResultsTable | undefined, label: string): boolean {
+  const row = findRow(table, label);
+  if (!table || !row) return false;
+  const best = bestColumns(table, row);
+  return best.has(columnIndex(table, 'naive')) && !best.has(columnIndex(table, 'kindling'));
+}
+
 /** Rows backtest.py marks with an arrow ("60 ← config", "35 ← fall pick"). */
 export const isMarkedRow = (row: ResultsRow) => row.label.includes('←');
+
+/** "35 ← fall pick" → "35". */
+export const rowKeyText = (row: ResultsRow) => row.label.split('←')[0].trim();
+
+/** The first row whose label carries this marker ("fall pick", "config"). */
+export function markedRow(table: ResultsTable | undefined, marker: string): ResultsRow | undefined {
+  return table?.rows.find(r => r.label.split('←').slice(1).some(m => m.trim().toLowerCase() === marker));
+}
+
+/** "median lead time (days)" → "days". Only time units count ("recall (churners)" has none). */
+export function unitOf(label: string): string | null {
+  return label.match(/\((days|weeks)\)\s*$/i)?.[1] ?? null;
+}
+
+/** "churners flagged ≥45 days early" → "45". */
+export function daysEarly(table: ResultsTable | undefined): string | null {
+  for (const r of table?.rows ?? []) {
+    const m = r.label.match(/≥\s*(\d+)\s*days/);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+/** A display string as a number for count-through: "77%" → 77 + "%". null when it isn't one number. */
+export function parseDisplay(text: string | null | undefined): { n: number; suffix: string } | null {
+  const m = text?.match(/^\s*(-?\d+(?:\.\d+)?)\s*(%?)\s*$/);
+  return m ? { n: Number(m[1]), suffix: m[2] } : null;
+}
+
+export const sentenceCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** generated_at is a real UTC timestamp, so show it in the viewer's time zone. */
 export function fmtRunTime(iso: string): string {
@@ -102,6 +162,11 @@ export function fmtRunTime(iso: string): string {
   return d.toLocaleString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
   });
+}
+
+/** "Sep 1, 2025 to Jul 27, 2026" from a run's replay range. */
+export function fmtReplay(replay: { start: string; end: string } | undefined): string | null {
+  return replay ? `${fmtDay(replay.start)} to ${fmtDay(replay.end)}` : null;
 }
 
 export function sortExperiments(runs: ResultsRun[]): ResultsRun[] {
