@@ -5,3 +5,6 @@ __pycache__/
 .env
 *.pyc
 .DS_Store
+
+# Third-party reference frames from details.so: kept local (public repo). IDs/links live in DESIGN.md.
+docs/design/refs/

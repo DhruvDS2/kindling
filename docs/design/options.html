@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Kindling · design options (colorful references removed)</title>
+<style>
+  :root {
+    --paper: #FAF8F5; --ink: #1C1B19; --body: #3A3833; --muted: #6B6760; --line: #E4E0D9;
+    --ember: #C2461F;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink);
+         font: 15px/1.55 Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  main { max-width: 1180px; margin: 0 auto; padding: 56px 40px 96px; }
+  h1 { font-size: 28px; font-weight: 500; letter-spacing: -0.02em; margin: 0 0 8px; }
+  h2 { font-size: 19px; font-weight: 500; letter-spacing: -0.01em; margin: 56px 0 4px; }
+  .lede { color: var(--body); max-width: 760px; margin: 0; text-wrap: pretty; }
+  .note { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+  .slot { border-top: 1px solid var(--line); padding: 28px 0 8px; margin-top: 28px; }
+  .slot-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; }
+  .slot-head h3 { font-size: 16px; font-weight: 500; margin: 0; }
+  .slot-head span { color: var(--muted); font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
+  figure { margin: 0; }
+  video, img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; display: block;
+               background: #EFEBE5; border: 1px solid var(--line); border-radius: 4px; }
+  figcaption { padding-top: 12px; }
+  .id { display: flex; gap: 10px; align-items: baseline; }
+  .tag { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .name a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); }
+  .name a:hover { border-color: var(--ink); }
+  .take { color: var(--body); margin: 6px 0 0; font-size: 14px; text-wrap: pretty; }
+  .why { color: var(--muted); margin: 4px 0 0; font-size: 13px; }
+  .flag { color: var(--ember); font-size: 13px; margin: 6px 0 0; }
+  .locked .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; }
+  .locked .take { font-size: 13px; }
+  details { margin-top: 40px; border-top: 1px solid var(--line); padding-top: 16px; color: var(--body); }
+  summary { cursor: pointer; font-weight: 500; }
+  details li { margin: 6px 0; font-size: 14px; }
+  details a { color: var(--ink); }
+  code { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; color: var(--muted); }
+  .frame { position: relative; display: block; }
+  .frame span { position: absolute; left: 12px; bottom: 12px; background: rgba(28,27,25,0.82); color: #FAF8F5;
+                font-size: 12px; padding: 4px 8px; border-radius: 3px; opacity: 0; transition: opacity 120ms cubic-bezier(0.2,0.8,0.2,1); }
+  .frame:hover span, .frame:focus-visible span { opacity: 1; }
+  .frame:hover img { border-color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Kindling: motion picks</h1>
+  <p class="lede">Remaining motion options after removing every colorful reference. Each frame is a still from the real details.so recording; click it to watch the motion on details.so (their CDN doesn't allow playing clips on other sites). Pick one per slot (for example “6A, 6C, 7A, 8A, 9A, 10B”). We take the motion only: never the colors, imagery, logos or text.</p>
+  <p class="note">Frames and notes are in <code>docs/design/refs/</code> and <code>OPTIONS.md</code>.</p>
+
+  <section class="slot">
+    <div class="slot-head"><h3>6 · Page transitions</h3><span>switching screens</span></div>
+    <div class="grid">
+      <figure>
+        <a class="frame" href="https://www.details.so/inspo/v7labs-9f6e6d" target="_blank" rel="noopener" title="Watch the clip on details.so"><img src="refs/6A-v7labs-crossfade-page-transition.jpg" alt=""><span>▶ Watch the clip</span></a>
+        <figcaption><div class="id"><span class="tag">6A</span><span class="name"><a href="https://www.details.so/inspo/v7labs-9f6e6d" target="_blank" rel="noopener">V7 Labs</a></span></div>
+          <p class="take">Header and nav stay still; the outgoing page fades out while the incoming one fades in, with a brief overlap. No movement.</p>
+          <p class="why">The calmest possible switch for a rep moving between screens all day.</p></figcaption>
+      </figure>
+      <figure>
+        <a class="frame" href="https://www.details.so/inspo/effortel-j2zojx" target="_blank" rel="noopener" title="Watch the clip on details.so"><img src="refs/6B-effortel-dim-to-full-page-transition.jpg" alt=""><span>▶ Watch the clip</span></a>
+        <figcaption><div class="id"><span class="tag">6B</span><span class="name"><a href="https://www.details.so/inspo/effortel-j2zojx" target="_blank" rel="noopener">Effortel</a></span></div>
+          <p class="take">Nav stays fixed; the new page arrives dimmed and resolves to full strength, headline first.</p>
+          <p class="why">Slightly more sense of arrival; the title settles before the table.</p></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="slot">
+    <div class="slot-head"><h3>6+ · Drawer open</h3><span>row to school detail (only one option left)</span></div>
+    <div class="grid">
+      <figure>
+        <a class="frame" href="https://www.details.so/inspo/studio-onto-swzj3c" target="_blank" rel="noopener" title="Watch the clip on details.so"><img src="refs/6C-onto-panel-grows-from-origin.jpg" alt=""><span>▶ Watch the clip</span></a>
+        <figcaption><div class="id"><span class="tag">6C</span><span class="name"><a href="https://www.details.so/inspo/studio-onto-swzj3c" target="_blank" rel="noopener">ONTO</a></span></div>
+          <p class="take">The panel grows out of the clicked item's own box, and the title stays readable throughout. We stop at drawer width, not full screen.</p>
+          <p class="why">The school you clicked visibly becomes the drawer.</p></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="slot">
+    <div class="slot-head"><h3>7 · Number change</h3><span>changing the as-of date (only one option left)</span></div>
+    <div class="grid">
+      <figure>
+        <a class="frame" href="https://www.details.so/inspo/lassie-192f2b" target="_blank" rel="noopener" title="Watch the clip on details.so"><img src="refs/7A-lassie-count-through-values.jpg" alt=""><span>▶ Watch the clip</span></a>
+        <figcaption><div class="id"><span class="tag">7A</span><span class="name"><a href="https://www.details.so/inspo/lassie-192f2b" target="_blank" rel="noopener">Lassie</a></span></div>
+          <p class="take">A big figure counts through intermediate values to its new value (2% → 41% → 96% → 98%). No scramble.</p>
+          <p class="why">Warm off-white and quiet, like Kindling's paper. The photo tiles around it aren't part of what we'd take.</p></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="slot">
+    <div class="slot-head"><h3>8 · Hover, press, focus</h3></div>
+    <div class="grid">
+      <figure>
+        <a class="frame" href="https://www.details.so/inspo/linear-445982" target="_blank" rel="noopener" title="Watch the clip on details.so"><img src="refs/8A-linear-nav-hover-highlight.jpg" alt=""><span>▶ Watch the clip</span></a>
+        <figcaption><div class="id"><span class="tag">8A</span><span class="name"><a href="https://www.details.so/inspo/linear-445982" target="_blank" rel="noopener">Linear</a></span></div>
+          <p class="take">A soft, low-contrast rounded highlight under the hovered item that travels between items.</p>
+          <p class="why">One hover language for the sidebar and the table rows.</p></figcaption>
+      </figure>
+      <figure>
+        <a class="frame" href="https://www.details.so/inspo/terminal-industries-axkwha" target="_blank" rel="noopener" title="Watch the clip on details.so"><img src="refs/8B-terminal-rows-with-quiet-action.jpg" alt=""><span>▶ Watch the clip</span></a>
+        <figcaption><div class="id"><span class="tag">8B</span><span class="name"><a href="https://www.details.so/inspo/terminal-industries-axkwha" target="_blank" rel="noopener">Terminal Industries</a></span></div>
+          <p class="take">A bordered stack of rows: title and metadata, with one pale action button at the right of each.</p>
+          <p class="why">The model for quiet quick actions on a row (Open · Copy email · Send). The clip ends on a dark green footer; we'd ignore that.</p></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="slot">
+    <div class="slot-head"><h3>9 · Loading</h3><span>(only one option left)</span></div>
+    <div class="grid">
+      <figure>
+        <a class="frame" href="https://www.details.so/inspo/paradigmai-586452" target="_blank" rel="noopener" title="Watch the clip on details.so"><img src="refs/9A-paradigm-table-populating-cells.jpg" alt=""><span>▶ Watch the clip</span></a>
+        <figcaption><div class="id"><span class="tag">9A</span><span class="name"><a href="https://www.details.so/inspo/paradigmai-586452" target="_blank" rel="noopener">Paradigm (table)</a></span></div>
+          <p class="take">The table shows its “generating / analyzing” states, then cells fill in progressively. No spinner.</p>
+          <p class="why">Skeleton rows the shape of the real rows, filling in reading order on first load.</p></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="slot">
+    <div class="slot-head"><h3>10 · Date control</h3><span>the week pager in the top bar (only one option left)</span></div>
+    <div class="grid">
+      <figure>
+        <a class="frame" href="https://www.details.so/inspo/eleken-8d5f82" target="_blank" rel="noopener" title="Watch the clip on details.so"><img src="refs/10B-eleken-week-scale.jpg" alt=""><span>▶ Watch the clip</span></a>
+        <figcaption><div class="id"><span class="tag">10B</span><span class="name"><a href="https://www.details.so/inspo/eleken-8d5f82" target="_blank" rel="noopener">Eleken</a></span></div>
+          <p class="take">A horizontal week scale: one tick per Monday of the school year, breaks marked, click or drag to scrub.</p>
+          <p class="why">Mostly gray. It has one small orange sphere, which we wouldn't take.</p></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="slot locked">
+    <div class="slot-head"><h3>Locked structure picks</h3><span>for context; layout only</span></div>
+    <div class="grid">
+      <figure><img src="refs/1A-linear-grouped-sidebar-shell.jpg" alt="Grouped sidebar shell"><figcaption><div class="id"><span class="tag">1A</span><span class="name"><a href="https://www.details.so/inspo/linear-445982" target="_blank" rel="noopener">Linear</a></span></div><p class="take">Grouped sidebar; the week pager moves into the top bar.</p></figcaption></figure>
+      <figure><img src="refs/2A-sui-columned-table-skeleton-rows.jpg" alt="Columned table"><figcaption><div class="id"><span class="tag">2A</span><span class="name"><a href="https://www.details.so/inspo/sui-xkpnkz" target="_blank" rel="noopener">Sui</a></span></div><p class="take">Columned table, sticky header, skeleton rows, j/k.</p><p class="flag">Colorful reference: layout only.</p></figcaption></figure>
+      <figure><img src="refs/3B-auar-number-with-context-line.jpg" alt="Number with context line"><figcaption><div class="id"><span class="tag">3B</span><span class="name"><a href="https://www.details.so/inspo/auar-ccda21" target="_blank" rel="noopener">Auar</a></span></div><p class="take">Brief: a number with one context line.</p><p class="flag">Most colorful reference: layout only.</p></figcaption></figure>
+      <figure><img src="refs/3A-stripe-ruled-four-stat-row.jpg" alt="Ruled four-stat row"><figcaption><div class="id"><span class="tag">3A</span><span class="name"><a href="https://www.details.so/inspo/stripe-11c89a" target="_blank" rel="noopener">Stripe</a></span></div><p class="take">Backtest: ruled four-stat row.</p></figcaption></figure>
+      <figure><img src="refs/4A-playground-record-properties-panel.jpg" alt="Record properties panel"><figcaption><div class="id"><span class="tag">4A</span><span class="name"><a href="https://www.details.so/inspo/tryplayground-ee8c4c" target="_blank" rel="noopener">Playground</a></span></div><p class="take">Drawer: label/value property rows.</p><p class="flag">Colorful reference: layout only.</p></figcaption></figure>
+      <figure><img src="refs/4C-linear-record-view-pager.jpg" alt="Record view pager"><figcaption><div class="id"><span class="tag">4C</span><span class="name"><a href="https://www.details.so/inspo/linear-445982" target="_blank" rel="noopener">Linear</a></span></div><p class="take">The pager: j/k between schools inside the drawer.</p></figcaption></figure>
+      <figure><img src="refs/5A-index-line-chart-grouped-bars.jpg" alt="Line chart with grouped bars"><figcaption><div class="id"><span class="tag">5A</span><span class="name"><a href="https://www.details.so/inspo/index-79fc47" target="_blank" rel="noopener">Index</a></span></div><p class="take">Drawer chart: line plus grouped bars.</p></figcaption></figure>
+      <figure><img src="refs/5B-effortel-labeled-hero-bar.jpg" alt="Labeled hero bar"><figcaption><div class="id"><span class="tag">5B</span><span class="name"><a href="https://www.details.so/inspo/effortel-davmwm" target="_blank" rel="noopener">Effortel</a></span></div><p class="take">Backtest: one labeled bar per metric.</p><p class="flag">Colorful reference: layout only.</p></figcaption></figure>
+    </div>
+  </section>
+
+  <details>
+    <summary>Removed for color (4)</summary>
+    <ul>
+      <li><a href="https://www.details.so/inspo/composites-xlctm9" target="_blank" rel="noopener">6D Composites</a>: full-color architectural photography</li>
+      <li><a href="https://www.details.so/inspo/heimdallpower-umpqfx" target="_blank" rel="noopener">7B Heimdall Power</a>: red dotted-ring graphic</li>
+      <li><a href="https://www.details.so/inspo/paradigmai-fe0a99" target="_blank" rel="noopener">9B Paradigm (tabs)</a>: blue and orange processing marks, colored cells</li>
+      <li><a href="https://www.details.so/inspo/flowty-62bdcf" target="_blank" rel="noopener">10A Flowty</a>: purple glow</li>
+    </ul>
+  </details>
+</main>
+</body>
+</html>
