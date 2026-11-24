@@ -40,8 +40,8 @@
   --accent-on: #FFFFFF;        /* text on --accent-strong */
 
   /* ── Color: status (only for status; every status also prints its word) */
-  --status-ready-fg: #1F6A86;
-  --status-ready-bg: #E6F0F3;
+  --status-ready-fg: #80560F;
+  --status-ready-bg: #F5ECD8;
   --status-risk-fg: #B42318;
   --status-risk-bg: #FBE9E6;
   --status-healthy-fg: #2A7353;
@@ -185,8 +185,8 @@
   --accent-strong-press: #DE6A40;
   --accent-subtle: #33201A;
   --accent-on: #1A0F0A;
-  --status-ready-fg: #6DB3CF;
-  --status-ready-bg: #17262C;
+  --status-ready-fg: #E0B25C;
+  --status-ready-bg: #2B2315;
   --status-risk-fg: #F2877A;
   --status-risk-bg: #301B18;
   --status-healthy-fg: #6BC096;
@@ -222,8 +222,8 @@
     --accent-strong-press: #DE6A40;
     --accent-subtle: #33201A;
     --accent-on: #1A0F0A;
-    --status-ready-fg: #6DB3CF;
-    --status-ready-bg: #17262C;
+    --status-ready-fg: #E0B25C;
+    --status-ready-bg: #2B2315;
     --status-risk-fg: #F2877A;
     --status-risk-bg: #301B18;
     --status-healthy-fg: #6BC096;
