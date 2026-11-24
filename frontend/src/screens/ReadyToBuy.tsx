@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { notifySlack } from '../api';
 import { useAsOf } from '../asOf';
 import AccountDetail from '../components/AccountDetail';
@@ -61,8 +61,17 @@ function ReadyScreen({ schoolId, onSelectSchool }: Props) {
   const q = usePqlAt(asOf);
   const prevDay = weekBefore(asOf, meta);
   const prevQ = usePqlAt(prevDay);
-  const data = q.data;
-  const newSinceLastWeek = useNewThisWeek(data, prevQ.data, !q.isPlaceholderData && !prevQ.isPlaceholderData, isReady);
+  // Perf (Phase 3): the new week's rows render at transition priority. A query result lands as a
+  // synchronous update, and re-rendering all 85 rows in it was one 148ms task (dev). Deferring one
+  // snapshot of both weeks lets React render the swap in small, interruptible slices; everything
+  // below reads the snapshot, so counts, rows and tints always describe the same week.
+  const live = useMemo(
+    () => ({ asOf, data: q.data, placeholder: q.isPlaceholderData, prev: prevQ.data, prevPlaceholder: prevQ.isPlaceholderData }),
+    [asOf, q.data, q.isPlaceholderData, prevQ.data, prevQ.isPlaceholderData],
+  );
+  const shown = useDeferredValue(live);
+  const data = shown.data;
+  const newSinceLastWeek = useNewThisWeek(data, shown.prev, !shown.placeholder && !shown.prevPlaceholder, isReady);
   const newThisWeek = prevDay ? newSinceLastWeek : NONE;
 
   const ranked = useMemo(() => [...(data ?? [])].sort((a, b) => b.pql_score - a.pql_score), [data]);
@@ -72,7 +81,7 @@ function ReadyScreen({ schoolId, onSelectSchool }: Props) {
 
   // Default to the work for the week (Ready). A link that opens a school outside it starts on All instead.
   const [filterChoice, setFilter] = useState<Filter | null>(null);
-  if (filterChoice === null && data && !q.isPlaceholderData) setFilter(selected && !isReady(selected) ? 'all' : 'ready');
+  if (filterChoice === null && data && !shown.placeholder) setFilter(selected && !isReady(selected) ? 'all' : 'ready');
   const filter: Filter = filterChoice ?? 'ready';
 
   const [query, setQuery] = useState('');
@@ -95,14 +104,14 @@ function ReadyScreen({ schoolId, onSelectSchool }: Props) {
   const [tint, setTint] = useState<ReadonlySet<string>>(NONE);
   const shownWeek = useRef<{ day: string; ready: Set<string> } | null>(null);
   useEffect(() => {
-    if (!data || q.isPlaceholderData) return;
+    if (!data || shown.placeholder) return;
     const now = new Set(data.filter(isReady).map(s => s.school_id));
     const before = shownWeek.current;
-    shownWeek.current = { day: asOf, ready: now };
-    if (!before || before.day === asOf) return;
+    shownWeek.current = { day: shown.asOf, ready: now };
+    if (!before || before.day === shown.asOf) return;
     const crossed = [...now].filter(id => !before.ready.has(id));
     if (crossed.length) setTint(new Set(crossed));
-  }, [data, q.isPlaceholderData, asOf]);
+  }, [data, shown.placeholder, shown.asOf]);
 
   // 8B row actions. "Send to #sales" posts for real (POST /notify/slack): only ever on a click or `s`.
   const [sending, setSending] = useState<ReadonlySet<string>>(NONE);
@@ -222,7 +231,7 @@ function ReadyScreen({ schoolId, onSelectSchool }: Props) {
         </p>
       </header>
 
-      {schoolId && data && !q.isPlaceholderData && !selected && (
+      {schoolId && data && !shown.placeholder && !selected && (
         <div className="ready-notice" role="status">
           <span><span className="k-mono">{schoolId}</span> isn't a free school with a readiness score on {day}.</span>
           <Button variant="quiet" size="sm" onClick={() => onSelectSchool(null)}>Dismiss</Button>
