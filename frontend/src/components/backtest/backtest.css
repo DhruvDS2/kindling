@@ -1,0 +1,379 @@
+/* Backtest: an editorial results page (DESIGN.md §2 3A + 5B). Tokens only (npm run lint:tokens).
+   Structure comes from hairlines, a left rail and whitespace; no boxes. */
+
+.bt {
+  container: bt / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: var(--size-content);
+  padding-bottom: var(--space-10);
+  color: var(--text-primary);
+}
+
+/* ── Head: dateline, headline sentence, lede ─────────────────────────── */
+.bt-head { display: flex; flex-direction: column; gap: var(--space-1-5); }
+.bt-head__kicker {
+  margin: 0;
+  max-width: 72ch;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  letter-spacing: var(--tracking-sm);
+  color: var(--text-tertiary);
+}
+.bt-headline {
+  margin: 0;
+  max-width: 48ch;
+  font-size: var(--text-display);
+  line-height: var(--leading-display);
+  letter-spacing: var(--tracking-display);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+  text-wrap: balance;
+}
+.bt-headline__quiet { display: block; color: var(--text-tertiary); }
+.bt-head__lede {
+  margin: 0;
+  max-width: 64ch;
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  letter-spacing: var(--tracking-lg);
+  color: var(--text-secondary);
+}
+.bt-skel-headline { display: flex; flex-direction: column; gap: var(--space-1); }
+
+/* ── 3A stat row context: what the number means, then the naive model ── */
+.bt-stat__meaning, .bt-stat__naive { display: block; }
+.bt-stat__ahead { color: var(--text-secondary); font-weight: var(--weight-medium); }
+
+/* ── Sections: hairline, title + intro in the left rail, content right ─ */
+.bt-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+  column-gap: var(--space-5);
+  row-gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: var(--size-hairline) solid var(--border-hairline);
+}
+/* The stat row's bottom rule already separates the first section. */
+.bt-stats + .bt-section, .bt-missing + .bt-section { padding-top: 0; border-top: 0; }
+.bt-section__head { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.bt-section__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  letter-spacing: var(--tracking-lg);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+.bt-section__intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  letter-spacing: var(--tracking-sm);
+  color: var(--text-secondary);
+}
+.bt-section__intro p { margin: 0; }
+.bt-section__body { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+
+/* ── 5B labeled bars ──────────────────────────────────────────────────── */
+.bt-hero { display: flex; flex-direction: column; gap: var(--space-4); }
+.bt-hero__group { display: flex; flex-direction: column; }
+.bt-hero__group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-0-5) var(--space-2);
+  padding-bottom: var(--space-1);
+  border-bottom: var(--size-hairline) solid var(--border-hairline);
+}
+.bt-hero__group-title, .bt-district__subhead, .bt-run__title {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  letter-spacing: var(--tracking-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+.bt-hero__group-who, .bt-run__who { font-weight: var(--weight-regular); color: var(--text-tertiary); }
+.bt-hero__group-rule { font-size: var(--text-label); line-height: var(--leading-label); color: var(--text-tertiary); }
+
+.bt-metric {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  column-gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-1-5) 0;
+  border-bottom: var(--size-hairline) solid var(--border-faint);
+}
+.bt-metric--compact { padding: var(--space-1) 0; }
+.bt-metric__label { display: flex; flex-direction: column; min-width: 0; }
+.bt-metric__title { font-size: var(--text-sm); line-height: var(--leading-sm); letter-spacing: var(--tracking-sm); color: var(--text-primary); }
+.bt-metric__sub { font-size: var(--text-label); line-height: var(--leading-label); color: var(--text-tertiary); }
+.bt-metric__ahead { color: var(--text-secondary); font-weight: var(--weight-medium); }
+.bt-metric__bars { display: flex; flex-direction: column; gap: var(--space-0-5); min-width: 0; }
+
+.bt-bar {
+  display: grid;
+  grid-template-columns: var(--space-8) minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--space-1-5);
+  min-height: var(--leading-sm);
+}
+.bt-bar.is-unnamed { grid-template-columns: minmax(0, 1fr); }
+.bt-bar__name { font-size: var(--text-label); line-height: var(--leading-label); color: var(--text-tertiary); white-space: nowrap; }
+.bt-bar--hero .bt-bar__name { color: var(--text-secondary); }
+.bt-bar__track { position: relative; display: flex; align-items: center; gap: var(--space-1); min-width: 0; }
+/* The fill's width follows --k-frac (0–1) of the track, minus room for the value at its end. */
+.bt-bar__fill {
+  position: relative;
+  flex: none;
+  width: calc((100% - var(--space-10)) * var(--k-frac, 0));
+  min-width: var(--size-focus-ring);
+  border-radius: var(--radius-1);
+  transition: width var(--motion-reveal) var(--ease-enter);
+}
+.bt-bar--hero .bt-bar__fill { height: var(--space-1-5); background: var(--text-primary); }
+.bt-bar--muted .bt-bar__fill { height: var(--space-1); background: var(--data-naive); }
+.bt-bar__value { position: relative; flex: none; font-size: var(--text-sm); line-height: var(--leading-sm); white-space: nowrap; }
+.bt-bar--hero .bt-bar__value { color: var(--text-primary); font-weight: var(--weight-medium); }
+.bt-bar--muted .bt-bar__value { color: var(--text-tertiary); }
+/* The full track behind a bar, for "3 of 12" style values. */
+.bt-bar__track.has-rail::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: calc(100% - var(--space-10));
+  height: var(--space-1-5);
+  transform: translateY(-50%);
+  border-radius: var(--radius-1);
+  background: var(--bg-subtle);
+  box-shadow: inset 0 0 0 var(--size-hairline) var(--border-faint);
+}
+
+/* ── District calendars: a before/after whose bars morph over --motion-base ── */
+.bt-district { display: flex; flex-direction: column; gap: var(--space-3); }
+.bt-district__control { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
+.bt-district__column { font-size: var(--text-label); line-height: var(--leading-label); color: var(--text-tertiary); }
+.bt-district__metrics { display: flex; flex-direction: column; border-top: var(--size-hairline) solid var(--border-hairline); }
+.bt-district__calendars { display: flex; flex-direction: column; }
+.bt-district__subhead { padding-bottom: var(--space-1); border-bottom: var(--size-hairline) solid var(--border-hairline); }
+.bt-district .bt-bar__fill { transition-duration: var(--motion-base); }
+
+/* ── Results tables, notes, stamps ───────────────────────────────────── */
+.bt-tables { display: flex; flex-direction: column; gap: var(--space-5); }
+.bt-run { display: flex; flex-direction: column; gap: var(--space-1-5); }
+.bt-result { display: flex; flex-direction: column; gap: var(--space-1); }
+.bt-result + .bt-result { margin-top: var(--space-2); }
+.bt-result__title {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+}
+/* Column names come verbatim from the results file, so let them wrap instead of truncating. */
+.bt-th { display: block; padding: var(--space-0-5) 0; white-space: normal; overflow-wrap: anywhere; }
+.bt-cell-label { color: var(--text-secondary); }
+.bt-cell-label.is-marked { color: var(--text-primary); font-weight: var(--weight-medium); }
+.bt-cell { color: var(--text-secondary); }
+.bt-cell.is-best { color: var(--text-primary); font-weight: var(--weight-medium); }
+
+.bt-note {
+  margin: 0;
+  max-width: 72ch;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  letter-spacing: var(--tracking-sm);
+  color: var(--text-secondary);
+}
+.bt-result__note, .bt-district__note { color: var(--text-tertiary); }
+.bt-strong { font-weight: var(--weight-medium); color: var(--text-primary); }
+.bt-code {
+  padding: 0 var(--space-0-5);
+  border-radius: var(--radius-1);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+/* Quiet but visible: source file · run time (local) · commit, under every results table. */
+.bt-stamp {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-0-5) var(--space-2);
+  margin: 0;
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--text-secondary);
+}
+.bt-stamp__item { display: inline-flex; align-items: baseline; gap: var(--space-0-5); }
+.bt-stamp__key { color: var(--text-tertiary); }
+
+/* ── Disclosures ─────────────────────────────────────────────────────── */
+.bt-disclosures { display: flex; flex-direction: column; border-top: var(--size-hairline) solid var(--border-hairline); }
+.bt-disclosure { border-bottom: var(--size-hairline) solid var(--border-faint); }
+.bt-disclosure__summary {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  width: calc(100% + var(--space-2));
+  margin: 0 calc(var(--space-1) * -1);
+  padding: var(--space-1-5) var(--space-1);
+  border: 0;
+  border-radius: var(--radius-2);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease-enter);
+}
+.bt-disclosure__summary:hover { background: var(--bg-hover); }
+.bt-disclosure__summary:active { background: var(--bg-press); }
+.bt-disclosure__chevron {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: var(--leading-md);
+  color: var(--text-tertiary);
+  transition: transform var(--motion-base) var(--ease-enter);
+}
+.bt-disclosure.is-open .bt-disclosure__chevron { transform: rotate(90deg); }
+.bt-disclosure__text { display: flex; flex-direction: column; gap: var(--space-0-5); min-width: 0; }
+.bt-disclosure__title {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  letter-spacing: var(--tracking-md);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+.bt-disclosure__tag { margin-left: var(--space-1); font-size: var(--text-sm); font-weight: var(--weight-regular); color: var(--text-tertiary); }
+.bt-disclosure__tag::before { content: '· '; }
+.bt-disclosure__takeaway {
+  max-width: 80ch;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  letter-spacing: var(--tracking-sm);
+  color: var(--text-secondary);
+}
+.bt-disclosure__panel { overflow: hidden; }
+.bt-disclosure__inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-1) 0 var(--space-4) calc(var(--size-icon-sm) + var(--space-1));
+}
+
+/* ── Weekly chart ────────────────────────────────────────────────────── */
+.bt-weekly { display: flex; flex-direction: column; gap: var(--space-2); }
+.bt-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-0-5) var(--space-2);
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--text-secondary);
+}
+.bt-legend__item { display: inline-flex; align-items: center; gap: var(--space-0-5); }
+.bt-legend__detail { color: var(--text-tertiary); }
+.bt-swatch { display: inline-block; flex: none; width: var(--size-icon-sm); height: var(--space-1); border-radius: var(--radius-1); }
+.bt-swatch.is-kindling { background: var(--text-primary); }
+.bt-swatch.is-naive { background: var(--data-naive); }
+.bt-swatch.is-break { background: var(--data-break); box-shadow: inset 0 0 0 var(--size-hairline) var(--border-hairline); }
+.bt-swatch.is-summer { background: var(--data-summer); box-shadow: inset 0 0 0 var(--size-hairline) var(--border-hairline); }
+
+/* recharts draws SVG; colors and type come from these rules, never from props. */
+.bt-chart .recharts-cartesian-grid line { stroke: var(--border-faint); }
+.bt-chart .recharts-cartesian-axis-tick-value,
+.bt-chart .recharts-cartesian-axis-tick text {
+  fill: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-size: var(--text-label);
+  font-variant-numeric: var(--numeric);
+}
+.bt-chart .bt-chart__span.is-break .recharts-reference-area-rect,
+.bt-chart .bt-chart__span.is-break path { fill: var(--data-break); }
+.bt-chart .bt-chart__span.is-summer .recharts-reference-area-rect,
+.bt-chart .bt-chart__span.is-summer path { fill: var(--data-summer); }
+.bt-chart .bt-chart__span-label,
+.bt-chart .recharts-reference-area .recharts-label { fill: var(--text-tertiary); font-family: var(--font-sans); font-size: var(--text-label); }
+.bt-chart .bt-chart__bar.is-kindling path, .bt-chart .bt-chart__bar.is-kindling .recharts-rectangle { fill: var(--text-primary); }
+.bt-chart .bt-chart__bar.is-naive path, .bt-chart .bt-chart__bar.is-naive .recharts-rectangle { fill: var(--data-naive); }
+.bt-chart .recharts-label-list text,
+.bt-chart .bt-chart__peak {
+  fill: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: var(--numeric);
+}
+.bt-chart .recharts-tooltip-cursor, .bt-chart .bt-chart__cursor { fill: var(--bg-hover); }
+.bt-chart .recharts-surface:focus { outline: none; }
+
+.bt-tip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  padding: var(--space-1) var(--space-1-5);
+  border-radius: var(--radius-3);
+  background: var(--bg-raised);
+  box-shadow: var(--elevation-popover);
+  font-family: var(--font-sans);
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.bt-tip__head { color: var(--text-tertiary); }
+.bt-tip__tag { color: var(--text-secondary); font-weight: var(--weight-medium); }
+.bt-tip__row { display: flex; align-items: center; gap: var(--space-1); }
+.bt-tip__name { flex: 1; color: var(--text-secondary); }
+.bt-tip__value { margin-left: var(--space-2); font-weight: var(--weight-medium); }
+
+/* ── Missing results files ───────────────────────────────────────────── */
+.bt-missing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+  padding-bottom: var(--space-3);
+  border-bottom: var(--size-hairline) solid var(--border-hairline);
+}
+.bt-missing__title { margin: 0; max-width: 72ch; font-size: var(--text-md); line-height: var(--leading-md); letter-spacing: var(--tracking-md); color: var(--text-primary); }
+.bt-missing__list { display: flex; flex-direction: column; gap: var(--space-0-5); margin: 0; padding: 0; list-style: none; }
+.bt-missing__item { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1); font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-secondary); }
+.bt-missing__by { color: var(--text-tertiary); }
+.bt-missing__foot { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1-5) var(--space-2); }
+.bt-missing__how { margin: 0; font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-secondary); }
+
+/* ── Loading shapes ──────────────────────────────────────────────────── */
+.bt-skel-bars { gap: var(--space-1); }
+.bt-skel-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-1);
+  height: calc(var(--space-10) * 3);
+  padding-top: var(--space-4);
+  border-bottom: var(--size-hairline) solid var(--border-faint);
+}
+.bt-skel-col { flex: 1; }
+
+/* ── Narrow: the rail stacks over the content; bars go under their label ── */
+@container bt (max-width: 880px) {
+  .bt-section { grid-template-columns: minmax(0, 1fr); }
+}
+@container bt (max-width: 560px) {
+  .bt-metric { grid-template-columns: minmax(0, 1fr); row-gap: var(--space-1); }
+}
+
+/* Reduced motion: bars never grow or morph, the chevron doesn't turn. */
+@media (prefers-reduced-motion: reduce) {
+  .bt-bar__fill, .bt-district .bt-bar__fill { transition: none; }
+  .bt-disclosure__chevron { transition: none; }
+}

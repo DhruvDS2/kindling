@@ -1,35 +1,34 @@
+import { Button } from '../../design';
 import { commandFor } from './metrics';
 
-const code = {
-  fontFamily: 'JetBrains Mono, monospace', fontSize: 12.5, background: 'var(--nav)',
-  padding: '1px 6px', borderRadius: 4, color: 'var(--ink)',
-} as const;
-
-/** Results files the API looked for and didn't find, with the command that writes each one. */
-export default function MissingRuns({ missing }: { missing: string[] }) {
+/**
+ * Results files the API looked for and didn't find, with the command that writes each one.
+ * Their sections are left out rather than filled with old numbers.
+ */
+export default function MissingRuns({ missing, onRetry, retrying }: { missing: string[]; onRetry?: () => void; retrying?: boolean }) {
   if (missing.length === 0) return null;
   const commands = [...new Set(missing.map(commandFor))];
   return (
-    <div data-testid="missing-runs" role="status" style={{
-      background: 'var(--card)', border: '1px solid var(--line)', borderLeft: '3px solid var(--risk)',
-      borderRadius: 12, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 8,
-    }}>
-      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>
-        Missing results: {missing.length === 1 ? 'one file was' : `${missing.length} files were`} not found
-      </div>
-      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: 'var(--body)', lineHeight: 1.7 }}>
+    <section className="bt-missing" data-testid="missing-runs" role="status" aria-labelledby="bt-missing-title">
+      <p id="bt-missing-title" className="bt-missing__title">
+        {missing.length === 1 ? 'One results file hasn’t been written yet' : `${missing.length} results files haven’t been written yet`}, so
+        {missing.length === 1 ? ' its numbers are' : ' their numbers are'} left off this page rather than shown from an older run.
+      </p>
+      <ul className="bt-missing__list">
         {missing.map(id => (
-          <li key={id}>
-            <span style={code}>results/{id}.json</span>
-            <span style={{ color: 'var(--muted)' }}> · written by </span>
-            <span style={code}>{commandFor(id)}</span>
+          <li key={id} className="bt-missing__item">
+            <span className="bt-missing__file">results/{id}.json</span>
+            <span className="bt-missing__by">written by</span>
+            <code className="bt-code">{commandFor(id)}</code>
           </li>
         ))}
       </ul>
-      <div style={{ fontSize: 13, color: 'var(--muted)' }}>
-        Run {commands.map((c, i) => <span key={c}>{i > 0 && ' and '}<span style={code}>{c}</span></span>)} from the repo root, then reload.
-        Until then those tables are left out rather than filled with old numbers.
+      <div className="bt-missing__foot">
+        <p className="bt-missing__how">
+          Run {commands.map((c, i) => <span key={c}>{i > 0 && ' and '}<code className="bt-code">{c}</code></span>)} from the repo root, then check again.
+        </p>
+        {onRetry && <Button variant="secondary" size="sm" loading={retrying} onClick={onRetry}>Check again</Button>}
       </div>
-    </div>
+    </section>
   );
 }

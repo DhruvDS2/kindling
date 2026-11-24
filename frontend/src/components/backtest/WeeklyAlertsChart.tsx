@@ -1,12 +1,19 @@
+import { useMemo } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceArea, ResponsiveContainer, LabelList,
+  Bar, BarChart, CartesianGrid, LabelList, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
+import { Table, readToken, type Column } from '../../design';
 import type { BacktestData, BacktestWeek, SchoolCalendar } from '../../types';
 import { fmtDay, parseDay } from '../../nav';
+import { Disclosure } from './Section';
+
+// Paying schools scored At risk each Monday of the replay, naive vs Kindling (GET /backtest),
+// with breaks and summer shaded. Colors, type and spacing come from tokens via CSS classes
+// (backtest.css); recharts only gets geometry.
 
 const SERIES = [
-  { key: 'naive', name: 'Naive (calendar-day windows)', color: 'var(--naive)' },
-  { key: 'kindling', name: 'Kindling (school-day windows)', color: 'var(--ember)' },
+  { key: 'kindling', name: 'Kindling', detail: 'school-day windows', className: 'is-kindling' },
+  { key: 'naive', name: 'Naive model', detail: 'calendar-day windows', className: 'is-naive' },
 ] as const;
 
 type Span = { kind: 'break' | 'summer'; start: string; end: string };
@@ -31,138 +38,144 @@ function peakIndex(weeks: BacktestWeek[], key: 'naive' | 'kindling'): number {
   return best;
 }
 
+/** A token's px value as a number, for recharts geometry (e.g. px('--space-3') → 24). */
+const px = (token: string) => parseFloat(readToken(token)) || 0;
+
+const short = (d: string) => fmtDay(d, { month: 'short', day: 'numeric' });
+
+function weekTag(label: string, week: BacktestWeek | undefined, calendar: SchoolCalendar): string | null {
+  if (!week) return null;
+  if (week.is_summer) return `Summer (school year ${short(calendar.first_day)} to ${short(calendar.last_day)})`;
+  if (!week.is_break) return null;
+  const sunday = new Date(parseDay(label).getTime() + 6 * 86400000);
+  const brk = calendar.breaks.find(b => parseDay(b.start) <= sunday && parseDay(b.end) >= parseDay(label));
+  return brk ? `Break, ${short(brk.start)} to ${short(brk.end)}` : 'Break week';
+}
+
 interface TipProps { active?: boolean; label?: string | number; payload?: { dataKey?: string | number; value?: number }[] }
 
 function WeekTooltip({ active, label, payload, weeks, calendar }: TipProps & { weeks: BacktestWeek[]; calendar: SchoolCalendar }) {
   if (!active || !payload?.length || typeof label !== 'string') return null;
   const week = weeks.find(w => w.date === label);
-  const sunday = new Date(parseDay(label).getTime() + 6 * 86400000);
-  const brk = week?.is_break
-    ? calendar.breaks.find(b => parseDay(b.start) <= sunday && parseDay(b.end) >= parseDay(label))
-    : undefined;
-  const range = (a: string, b: string) => `${fmtDay(a, { month: 'short', day: 'numeric' })} to ${fmtDay(b, { month: 'short', day: 'numeric' })}`;
-  const tag = week?.is_summer
-    ? `Summer (school year ${range(calendar.first_day, calendar.last_day)})`
-    : brk ? `Break ${range(brk.start, brk.end)}` : week?.is_break ? 'Break week' : null;
+  const tag = weekTag(label, week, calendar);
   return (
-    <div style={{
-      background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, padding: '8px 12px',
-      fontFamily: 'Inter', fontSize: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', minWidth: 210,
-    }}>
-      <div style={{ color: 'var(--muted)', marginBottom: tag ? 2 : 6 }}>
-        Week of {fmtDay(label, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-      </div>
-      {tag && <div style={{ color: 'var(--body)', fontWeight: 500, marginBottom: 6 }}>{tag}</div>}
-      {SERIES.map(s => {
-        const v = payload.find(p => p.dataKey === s.key)?.value;
-        return (
-          <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0' }}>
-            <span aria-hidden style={{ width: 12, height: 2, background: s.color, borderRadius: 1 }} />
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, color: 'var(--ink)', minWidth: 22 }}>{v ?? '—'}</span>
-            <span style={{ color: 'var(--muted)' }}>{s.name}</span>
-          </div>
-        );
-      })}
+    <div className="bt-tip">
+      <div className="bt-tip__head">Week of {fmtDay(label, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</div>
+      {tag && <div className="bt-tip__tag">{tag}</div>}
+      {SERIES.map(s => (
+        <div key={s.key} className="bt-tip__row">
+          <span className={`bt-swatch ${s.className}`} aria-hidden="true" />
+          <span className="bt-tip__name">{s.name}</span>
+          <span className="bt-tip__value k-num">{payload.find(p => p.dataKey === s.key)?.value ?? '—'}</span>
+        </div>
+      ))}
     </div>
   );
 }
 
-/** Paying schools scored At risk each Monday of the replay, naive vs Kindling, with breaks and summer shaded. */
+/** One sentence from the series: where the naive model peaks (and whether it's right after a break), and Kindling's peak. */
+export function WeeklyTakeaway({ data }: { data: BacktestData }) {
+  const weeks = data.weeks;
+  const n = peakIndex(weeks, 'naive');
+  const k = peakIndex(weeks, 'kindling');
+  if (n < 0) return null;
+  const afterBreak = n > 0 && weeks[n - 1].is_break && !weeks[n].is_break;
+  return (
+    <>
+      The naive model’s alerts peak at <span className="k-num">{weeks[n].naive}</span> on {fmtDay(weeks[n].date, { month: 'short', day: 'numeric' })}
+      {afterBreak ? ', the first Monday back from a break' : ''}
+      {k >= 0 ? <>. Kindling’s busiest week has <span className="k-num">{weeks[k].kindling}</span>.</> : '.'}
+    </>
+  );
+}
+
+const weekColumns: Column<BacktestWeek>[] = [
+  { id: 'date', header: 'Monday', cell: w => fmtDay(w.date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }), width: '34%' },
+  { id: 'kindling', header: 'Kindling', numeric: true, cell: w => w.kindling },
+  { id: 'naive', header: 'Naive model', numeric: true, cell: w => w.naive },
+  { id: 'kind', header: 'Week', cell: w => (w.is_summer ? 'Summer' : w.is_break ? 'Break' : ''), width: '22%' },
+];
+
 export default function WeeklyAlertsChart({ data }: { data: BacktestData }) {
   const weeks = data.weeks;
-  const spans = shadedSpans(weeks);
-  const monthTicks = weeks
+  const spans = useMemo(() => shadedSpans(weeks), [weeks]);
+  const monthTicks = useMemo(() => weeks
     .filter((w, i) => i === 0 || parseDay(w.date).getMonth() !== parseDay(weeks[i - 1].date).getMonth())
-    .map(w => w.date);
+    .map(w => w.date), [weeks]);
   // Label only each series' peak week (recharts skips a label whose value is undefined).
-  const peaks = { naive: peakIndex(weeks, 'naive'), kindling: peakIndex(weeks, 'kindling') };
-  const rows = weeks.map((w, i) => ({
-    ...w,
-    naive_peak: i === peaks.naive ? w.naive : undefined,
-    kindling_peak: i === peaks.kindling ? w.kindling : undefined,
-  }));
-  const peakLabelStyle = { fontSize: 11, fontFamily: 'JetBrains Mono, monospace', fill: 'var(--body)' };
+  const rows = useMemo(() => {
+    const peaks = { naive: peakIndex(weeks, 'naive'), kindling: peakIndex(weeks, 'kindling') };
+    return weeks.map((w, i) => ({
+      ...w,
+      naive_peak: i === peaks.naive ? w.naive : undefined,
+      kindling_peak: i === peaks.kindling ? w.kindling : undefined,
+    }));
+  }, [weeks]);
+
+  const gap = px('--size-hairline');
+  const margin = { top: px('--space-3'), right: px('--space-1'), bottom: 0, left: 0 };
 
   return (
-    <div>
-      <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12, fontSize: 12, color: 'var(--muted)' }}>
+    <div className="bt-weekly" data-testid="weekly-chart">
+      <div className="bt-legend">
         {SERIES.map(s => (
-          <span key={s.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span aria-hidden style={{ width: 10, height: 10, borderRadius: 2, background: s.color }} />
-            {s.name}
+          <span key={s.key} className="bt-legend__item">
+            <span className={`bt-swatch ${s.className}`} aria-hidden="true" />
+            {s.name} <span className="bt-legend__detail">· {s.detail}</span>
           </span>
         ))}
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <span aria-hidden style={{ width: 14, height: 10, borderRadius: 2, background: 'var(--break-shade)', border: '1px solid var(--line)' }} />
-          School break or summer ({data.calendar.calendar_id} calendar)
-        </span>
+        <span className="bt-legend__item"><span className="bt-swatch is-break" aria-hidden="true" />School break</span>
+        <span className="bt-legend__item"><span className="bt-swatch is-summer" aria-hidden="true" />Summer</span>
+        <span className="bt-legend__detail">({data.calendar.calendar_id} calendar)</span>
       </div>
 
-      <div role="img" aria-label="Weekly at-risk alerts, naive versus Kindling. Exact numbers are in the weekly table below.">
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={rows} barCategoryGap="10%" barGap={2} margin={{ top: 22, right: 8, bottom: 0, left: 0 }}>
-            <CartesianGrid vertical={false} stroke="var(--row-divider)" />
+      <div className="bt-chart" role="img" aria-label="Weekly at-risk alerts, naive model versus Kindling. Exact numbers are in the weekly table below.">
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={rows} barCategoryGap="12%" barGap={gap} margin={margin}>
+            <CartesianGrid vertical={false} className="bt-chart__grid" />
             {spans.map(s => (
               <ReferenceArea
                 key={`${s.kind}-${s.start}`}
                 x1={s.start}
                 x2={s.end}
-                fill="var(--break-shade)"
+                className={`bt-chart__span is-${s.kind}`}
                 fillOpacity={1}
                 ifOverflow="hidden"
-                label={{ value: s.kind === 'summer' ? 'Summer' : 'Break', position: 'insideTop', fontSize: 10.5, fill: 'var(--muted)', fontFamily: 'Inter' }}
+                label={{ value: s.kind === 'summer' ? 'Summer' : 'Break', position: 'insideTop', className: 'bt-chart__span-label' }}
               />
             ))}
             <XAxis
               dataKey="date"
               ticks={monthTicks}
               tickFormatter={(d: string) => fmtDay(d, { month: 'short' })}
-              tick={{ fontSize: 12, fill: 'var(--muted)', fontFamily: 'Inter' }}
-              axisLine={{ stroke: 'var(--line)' }}
+              className="bt-chart__axis"
+              axisLine={false}
               tickLine={false}
               interval={0}
             />
-            <YAxis
-              allowDecimals={false}
-              tick={{ fontSize: 12, fill: 'var(--muted)', fontFamily: 'JetBrains Mono, monospace' }}
-              axisLine={false}
-              tickLine={false}
-              width={32}
+            <YAxis allowDecimals={false} className="bt-chart__axis" axisLine={false} tickLine={false} width={px('--space-4')} />
+            <Tooltip
+              content={<WeekTooltip weeks={weeks} calendar={data.calendar} />}
+              cursor={{ className: 'bt-chart__cursor' }}
+              isAnimationActive={false}
             />
-            <Tooltip content={<WeekTooltip weeks={weeks} calendar={data.calendar} />} cursor={{ fill: 'var(--nav)', fillOpacity: 0.7 }} />
             {SERIES.map(s => (
-              <Bar key={s.key} dataKey={s.key} name={s.name} fill={s.color} radius={[4, 4, 0, 0]} maxBarSize={10} isAnimationActive={false}>
-                <LabelList dataKey={`${s.key}_peak`} position="top" offset={6} style={peakLabelStyle} />
+              <Bar key={s.key} dataKey={s.key} name={s.name} className={`bt-chart__bar ${s.className}`} radius={[2, 2, 0, 0]} maxBarSize={10} isAnimationActive={false}>
+                <LabelList dataKey={`${s.key}_peak`} position="top" offset={px('--space-0-5')} className="bt-chart__peak" />
               </Bar>
             ))}
           </BarChart>
         </ResponsiveContainer>
       </div>
 
-      <details style={{ marginTop: 12 }}>
-        <summary style={{ fontSize: 12.5, color: 'var(--muted)', cursor: 'pointer' }}>
-          Weekly numbers ({fmtDay(data.replay.start)} to {fmtDay(data.replay.end)})
-        </summary>
-        <table style={{ marginTop: 8, borderCollapse: 'collapse', fontSize: 12.5 }}>
-          <thead>
-            <tr style={{ color: 'var(--muted)', borderBottom: '1px solid var(--line)' }}>
-              <th style={{ textAlign: 'left', fontWeight: 500, padding: '4px 16px 4px 0' }}>Monday</th>
-              {SERIES.map(s => <th key={s.key} style={{ textAlign: 'right', fontWeight: 500, padding: '4px 0 4px 16px' }}>{s.name}</th>)}
-              <th style={{ textAlign: 'left', fontWeight: 500, padding: '4px 0 4px 16px' }}>Week</th>
-            </tr>
-          </thead>
-          <tbody>
-            {weeks.map(w => (
-              <tr key={w.date} style={{ borderBottom: '1px solid var(--row-divider)' }}>
-                <td style={{ padding: '3px 16px 3px 0', fontFamily: 'JetBrains Mono, monospace', color: 'var(--body)' }}>{w.date}</td>
-                <td style={{ padding: '3px 0 3px 16px', textAlign: 'right', fontFamily: 'JetBrains Mono, monospace' }}>{w.naive}</td>
-                <td style={{ padding: '3px 0 3px 16px', textAlign: 'right', fontFamily: 'JetBrains Mono, monospace' }}>{w.kindling}</td>
-                <td style={{ padding: '3px 0 3px 16px', color: 'var(--muted)' }}>{w.is_summer ? 'Summer' : w.is_break ? 'Break' : ''}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </details>
+      <div className="bt-disclosures">
+        <Disclosure id="weekly-table" title="Weekly numbers" takeaway={`Every Monday from ${fmtDay(data.replay.start)} to ${fmtDay(data.replay.end)}, as the chart draws them.`}>
+          <Table<BacktestWeek> rows={weeks} columns={weekColumns} rowKey={w => w.date} aria-label="At-risk alerts by week" />
+          <p className="bt-stamp" data-testid="weekly-source">
+            <span className="bt-stamp__item"><span className="bt-stamp__key">Source</span> GET /backtest, counted live from the simulated year (no outcomes needed)</span>
+          </p>
+        </Disclosure>
+      </div>
     </div>
   );
 }
