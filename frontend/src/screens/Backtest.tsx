@@ -1,137 +1,118 @@
+import type { ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { BacktestData } from '../types';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ReferenceArea, ResponsiveContainer, Legend,
-} from 'recharts';
-import { fetchBacktest } from '../api';
+import type { BacktestData, BacktestResults, ResultsRun } from '../types';
+import { fetchBacktest, fetchBacktestResults } from '../api';
+import { useAsOf } from '../asOf';
 import { SkeletonCard } from '../components/Skeleton';
+import RunCard, { HeadlineStats } from '../components/backtest/RunCard';
+import WeeklyAlertsChart from '../components/backtest/WeeklyAlertsChart';
+import MissingRuns from '../components/backtest/MissingRuns';
+import { HEADLINE_RUNS, cardStyle, commandFor, sortExperiments } from '../components/backtest/metrics';
+
+// Every number on this screen comes from GET /backtest/results (the results/*.json
+// files backtest.py wrote) or GET /backtest (weekly counts). Nothing is computed here.
+
+function Section({ title, intro, children }: { title: string; intro?: ReactNode; children: ReactNode }) {
+  return (
+    <section style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: 'var(--ink)' }}>{title}</h2>
+        {intro && <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)', lineHeight: 1.55, maxWidth: 820 }}>{intro}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function LoadError({ what, error }: { what: string; error: unknown }) {
+  return (
+    <div role="alert" style={{ ...cardStyle, color: 'var(--muted)', fontSize: 14 }}>
+      Couldn't load {what}: {error instanceof Error ? error.message : String(error)}. Is the API running?
+    </div>
+  );
+}
+
+function MissingRunCard({ id, label }: { id: string; label: string }) {
+  return (
+    <div style={{ ...cardStyle, alignSelf: 'start', color: 'var(--muted)', fontSize: 13, lineHeight: 1.6 }}>
+      <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink)', marginBottom: 6 }}>{label}</div>
+      <code style={{ fontFamily: 'JetBrains Mono, monospace' }}>results/{id}.json</code> wasn't found.
+      Run <code style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--ink)' }}>{commandFor(id)}</code> to write it.
+    </div>
+  );
+}
+
+/** A run whose tables each compare two columns fits in half the width; wider ones get a full row. */
+const isCompact = (run: ResultsRun) => run.tables.every(t => t.index_name === null && t.columns.length <= 2);
+
+const twoUp = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gridAutoFlow: 'row dense', gap: 20, alignItems: 'start' } as const;
 
 export default function Backtest() {
-  const { data, isLoading, error } = useQuery<BacktestData>({ queryKey: ['backtest'], queryFn: () => fetchBacktest() });
+  const { meta } = useAsOf();
+  const results = useQuery<BacktestResults>({ queryKey: ['backtest-results'], queryFn: fetchBacktestResults });
+  const weekly = useQuery<BacktestData>({ queryKey: ['backtest'], queryFn: fetchBacktest });
 
-  if (error) return <div style={{ color: 'var(--muted)' }}>Failed to load — is the API running?</div>;
-  if (isLoading) return <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}><SkeletonCard rows={6} /><SkeletonCard rows={5} /></div>;
-
-  const weekly = data?.weeks ?? [];
-  const takeaway = 'The naive model panics every time school goes on break. Counting school days instead of calendar days keeps alerts flat through breaks, so the alerts that do fire are real declines.';
-
-  // Find break periods for ReferenceArea
-  const breakPeriods: { start: string; end: string }[] = [];
-  let breakStart: string | null = null;
-  for (const w of weekly) {
-    if (w.is_break && !breakStart) breakStart = w.date;
-    if (!w.is_break && breakStart) {
-      breakPeriods.push({ start: breakStart, end: w.date });
-      breakStart = null;
-    }
-  }
-  if (breakStart && weekly.length > 0) {
-    breakPeriods.push({ start: breakStart, end: weekly[weekly.length - 1].date });
-  }
-
-  // Build month tick labels
-  const monthTicks: string[] = [];
-  let lastMonth = '';
-  for (const w of weekly) {
-    const m = new Date(w.date).toLocaleDateString('en-US', { month: 'short' });
-    if (m !== lastMonth) { monthTicks.push(w.date); lastMonth = m; }
-    else monthTicks.push('');
-  }
-
-  // Parse YYYY-MM-DD as local time (not UTC) to avoid off-by-one-month in timezones
-  const parseLocal = (dateStr: string) => {
-    const [y, m, d] = dateStr.split('-').map(Number);
-    return new Date(y, m - 1, d);
-  };
-
-  const formatXAxis = (date: string) => {
-    if (!date) return '';
-    return parseLocal(date).toLocaleDateString('en-US', { month: 'short' });
-  };
+  const runs = results.data?.runs ?? [];
+  const pql = runs.find(r => r.id === HEADLINE_RUNS.pql);
+  const health = runs.find(r => r.id === HEADLINE_RUNS.health);
+  const experiments = sortExperiments(runs);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Chart card */}
-      <div style={{
-        background: 'var(--card)',
-        border: '1px solid var(--line)',
-        borderRadius: 12,
-        padding: 24,
-      }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)', marginBottom: 20 }}>
-          At-risk alerts per week
-        </div>
+    <div data-testid="backtest" style={{ display: 'flex', flexDirection: 'column', gap: 36, paddingBottom: 48 }}>
+      {results.error && <LoadError what="the backtest results (GET /backtest/results)" error={results.error} />}
+      {results.data && <MissingRuns missing={results.data.missing} />}
 
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={weekly} barCategoryGap="20%" barGap={2}>
-            <CartesianGrid vertical={false} stroke="var(--line)" strokeDasharray="3 3" />
-            <XAxis
-              dataKey="date"
-              tickFormatter={formatXAxis}
-              ticks={weekly.filter((_, i) => {
-                if (i === 0) return true;
-                const prev = parseLocal(weekly[i - 1].date).getMonth();
-                const curr = parseLocal(weekly[i].date).getMonth();
-                return curr !== prev;
-              }).map(w => w.date)}
-              tick={{ fontSize: 12, fill: 'var(--muted)', fontFamily: 'Inter' }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              tick={{ fontSize: 12, fill: 'var(--muted)', fontFamily: 'Inter' }}
-              axisLine={false}
-              tickLine={false}
-              width={28}
-            />
-            <Tooltip
-              contentStyle={{
-                background: 'var(--card)',
-                border: '1px solid var(--line)',
-                borderRadius: 8,
-                fontSize: 12,
-                fontFamily: 'Inter',
-              }}
-              cursor={{ fill: 'var(--nav)' }}
-            />
-            <Legend
-              wrapperStyle={{ fontSize: 12, color: 'var(--muted)', fontFamily: 'Inter' }}
-              formatter={(value) => {
-                if (value === 'naive') return 'Naive (calendar days)';
-                if (value === 'kindling') return 'Kindling (school days)';
-                return value;
-              }}
-            />
-            <Bar dataKey="naive" fill="var(--naive)" radius={[2, 2, 0, 0]} name="naive" maxBarSize={12} />
-            <Bar dataKey="kindling" fill="var(--ember)" radius={[2, 2, 0, 0]} name="kindling" maxBarSize={12} />
-            {/* Render break shading AFTER bars so it sits as a tint on top */}
-            {breakPeriods.map((bp, i) => (
-              <ReferenceArea
-                key={`front-${i}`}
-                x1={bp.start}
-                x2={bp.end}
-                fill="var(--break-shade)"
-                fillOpacity={0.35}
-                label=""
-              />
-            ))}
-          </BarChart>
-        </ResponsiveContainer>
-
-        {takeaway && (
-          <p style={{
-            fontSize: 14,
-            color: 'var(--body)',
-            fontStyle: 'italic',
-            marginTop: 16,
-            lineHeight: 1.6,
-          }}>
-            {takeaway}
-          </p>
+      <Section
+        title="Kindling vs a naive baseline"
+        intro="Both scores were replayed every Monday without seeing outcomes, then graded against what each school did. Every row of each results file is shown, including the ones where the naive model wins. Bold marks the better number on a row."
+      >
+        {results.isLoading ? (
+          <div style={twoUp}><SkeletonCard rows={9} /><SkeletonCard rows={9} /></div>
+        ) : results.data && (
+          <div style={{ ...twoUp, alignItems: 'stretch' }}>
+            {pql
+              ? <RunCard run={pql} eyebrow="Ready to buy · free schools" summary={<HeadlineStats run={pql} labels={['precision', 'recall']} />} />
+              : <MissingRunCard id={HEADLINE_RUNS.pql} label="PQL backtest" />}
+            {health
+              ? <RunCard run={health} eyebrow="At risk · paying schools" summary={<HeadlineStats run={health} labels={['false alarm rate', 'recall (churners)']} />} />
+              : <MissingRunCard id={HEADLINE_RUNS.health} label="Health backtest" />}
+          </div>
         )}
-      </div>
+      </Section>
 
+      <Section
+        title="At-risk alerts, week by week"
+        intro={`Paying schools scored At risk (health below ${meta.thresholds.health_at_risk_below}) on each Monday of the replay, by each model. Descriptive counts from GET /backtest: no outcomes are needed to draw them.`}
+      >
+        {weekly.error ? <LoadError what="the weekly series (GET /backtest)" error={weekly.error} />
+          : weekly.isLoading || !weekly.data ? <SkeletonCard rows={6} />
+          : (
+            <div style={cardStyle}>
+              <WeeklyAlertsChart data={weekly.data} />
+              <p style={{ fontSize: 14, color: 'var(--body)', margin: '16px 0 0', lineHeight: 1.6, maxWidth: 860 }}>
+                The naive model reads every school break as a drop in usage, so its alerts spike as school comes back.
+                Counting school days instead of calendar days means a break doesn't look like a drop, so Kindling's alerts don't spike.
+              </p>
+            </div>
+          )}
+      </Section>
+
+      {(results.isLoading || experiments.length > 0) && (
+        <Section
+          title="Experiments"
+          intro="Separate runs, each written to its own results file. None of them changes the headline numbers above. District calendars first, then the admin rule, the threshold sweep, and rules vs logistic regression."
+        >
+          {results.isLoading ? <SkeletonCard rows={8} /> : (
+            <div style={twoUp}>
+              {experiments.map(run => (
+                <div key={run.id} style={{ gridColumn: isCompact(run) ? 'span 1' : '1 / -1', minWidth: 0 }}>
+                  <RunCard run={run} tag={run.id === 'pql_admin_threshold' ? 'Experiment only: off in live scoring' : undefined} />
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+      )}
     </div>
   );
 }
