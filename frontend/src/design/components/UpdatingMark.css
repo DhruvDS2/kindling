@@ -1,0 +1,8 @@
+.k-updating {
+  display: inline-block;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}

@@ -1,0 +1,76 @@
+.k-drawer-root { position: fixed; inset: 0; z-index: var(--z-drawer); pointer-events: none; }
+.k-drawer__scrim { position: absolute; inset: 0; background: var(--scrim); }
+
+/* Flat, full height, on the surface color. No shadow, no rounded corners (Preymaker). */
+.k-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--size-drawer);
+  max-width: 100vw;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border-left: var(--size-hairline) solid var(--border-hairline);
+  outline: none;
+  --k-table-bg: var(--bg-surface);
+}
+
+.k-drawer__head { padding: var(--space-1-5) var(--space-3) var(--space-2); }
+.k-drawer__bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-1); margin-bottom: var(--space-2); }
+.k-drawer__pager { display: flex; align-items: center; gap: var(--space-0-5); min-width: 0; }
+.k-drawer__count { margin-left: var(--space-1); font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-secondary); white-space: nowrap; }
+.k-drawer__keys { margin-left: var(--space-1); font-size: var(--text-label); line-height: var(--leading-label); color: var(--text-tertiary); }
+
+/* Each header line rises through its own clip. */
+.k-drawer__clip { overflow: hidden; }
+.k-drawer__title {
+  margin: 0;
+  font-size: var(--text-display);
+  line-height: var(--leading-display);
+  letter-spacing: var(--tracking-display);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+  text-wrap: balance;
+}
+.k-drawer__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1-5);
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+}
+
+.k-drawer__rule { height: var(--size-hairline); background: var(--border-hairline); transform-origin: left center; }
+.k-drawer__body { position: relative; flex: 1; min-height: 0; overflow-y: auto; display: grid; }
+/* Old and new pages share one grid cell, so a pager change is a true cross-fade. */
+.k-drawer__page { grid-area: 1 / 1; min-width: 0; padding: 0 var(--space-3) var(--space-4); }
+.k-drawer__section { padding-top: var(--space-2); }
+.k-drawer__section > .k-drawer__rule { margin-bottom: var(--space-2); }
+.k-drawer__page > .k-drawer__section:first-child > .k-drawer__rule { display: none; }
+.k-drawer__section + .k-drawer__section { margin-top: var(--space-1); }
+.k-drawer__section-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-1); }
+.k-drawer__section-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  letter-spacing: var(--tracking-lg);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+.k-drawer__section-aside { font-size: var(--text-label); line-height: var(--leading-label); color: var(--text-tertiary); }
+
+.k-drawer__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1-5) var(--space-3);
+  border-top: var(--size-hairline) solid var(--border-hairline);
+  background: var(--bg-surface);
+}
+.k-drawer__foot-actions { display: flex; align-items: center; gap: var(--space-1); min-width: 0; }

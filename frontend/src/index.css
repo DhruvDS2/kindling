@@ -2,24 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --paper: #FAF8F5;
-  --nav: #F5F2ED;
-  --card: #FFFFFF;
-  --ink: #1C1B19;
-  --body: #3A3833;
-  --muted: #6B6760;
-  --line: #E4E0D9;
-  --row-divider: #EFEBE5;
-  --break-shade: #EFEBE5;
-  --ember: #E2572B;
-  --ember-chip-bg: #FCE9E1;
-  --ember-chip-text: #A63A18;
-  --risk: #B42318;
-  --risk-chip-bg: #FBE7E5;
-  --steady: #2F7D5B;
-  --naive: #9A958C;
-}
+/* Color, type, space and motion tokens live in src/design/tokens.css (imported first in main.tsx).
+   The old names (--paper, --ink, --ember, …) are kept there as deprecated aliases. */
 
 * {
   box-sizing: border-box;
@@ -31,10 +15,10 @@ html, body {
 }
 
 body {
-  background-color: var(--paper);
-  color: var(--ink);
-  font-family: 'Inter', sans-serif;
-  font-size: 14px;
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
   -webkit-font-smoothing: antialiased;
 }
 

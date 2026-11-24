@@ -1,0 +1,20 @@
+.k-tooltip {
+  position: fixed;
+  left: calc(var(--k-x) * 1px);
+  top: calc(var(--k-y) * 1px);
+  z-index: var(--z-popover);
+  max-width: var(--size-tooltip);
+  padding: var(--space-0-5) var(--space-1);
+  border-radius: var(--radius-2);
+  background: var(--bg-raised);
+  box-shadow: var(--elevation-popover);
+  color: var(--text-primary);
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  font-weight: var(--weight-medium);
+  pointer-events: none;
+  animation: k-fade-in var(--motion-fast) var(--ease-enter) both;
+  overflow-wrap: anywhere;
+}
+.k-tooltip--top { transform: translate(-50%, calc(-100% - var(--space-1))); }
+.k-tooltip--bottom { transform: translate(-50%, var(--space-1)); }

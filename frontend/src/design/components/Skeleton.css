@@ -1,0 +1,14 @@
+.k-skeleton {
+  display: block;
+  width: var(--k-w, 100%);
+  max-width: 100%;
+  border-radius: var(--radius-1);
+  background: var(--bg-skeleton);
+  animation: k-skeleton-pulse var(--skeleton-pulse) ease-in-out infinite;
+}
+.k-skeleton--label { height: var(--size-icon-sm); }
+.k-skeleton--line { height: var(--space-1-5); margin: var(--space-0-5) 0; }
+.k-skeleton--display { height: var(--space-3); }
+.k-skeleton--control { height: var(--size-control); border-radius: var(--radius-2); }
+@keyframes k-skeleton-pulse { 50% { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) { .k-skeleton { animation: none; } }

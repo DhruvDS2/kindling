@@ -1,6 +1,6 @@
 # Design: Kindling
 
-The source of truth for how Kindling looks and moves. Decisions and references are recorded here (2026-11-23, run `kindling-ui-upgrade`). Tokens and components (§5–§6) are filled in by Phase 1, from `frontend/src/design/tokens.css`.
+The source of truth for how Kindling looks and moves. Decisions and references are recorded here (2026-11-23, run `kindling-ui-upgrade`). Tokens and components (§5–§6) were filled in by Phase 1, from `frontend/src/design/tokens.css` and `frontend/src/design/components/`.
 
 ## 1. Principles
 - **An internal tool a rep opens on Monday morning.** It should feel like a precise, warm, calm B2B product (the bar: Linear, Attio, Vercel, Height), not a marketing site and not a template.
@@ -92,13 +92,154 @@ All are details.so entries with their stable ID. Each lane calls `get_inspiratio
 No bounce or overshoot, and no UI transition over 400ms. `prefers-reduced-motion: reduce` means fades only. Libraries: `motion` (motion.dev) for layout and shared transitions; the View Transitions API for route changes.
 
 ## 5. Tokens
-*(Phase 1 fills this from `frontend/src/design/tokens.css`. It evolves the existing tokens: color layers and text levels, the hairline, one accent, the status set, AA contrast in light and dark, type scale, 8px spacing, a small radius scale.)*
+Source: `frontend/src/design/tokens.css` (the only file allowed raw values). It evolves the pre-upgrade palette rather than replacing it: the warm paper, ink and ember stay; the old names are kept as **deprecated aliases** until Phase 2 migrates the screens off them. Load order: `tokens.css` → `base.css` → `index.css` (in `main.tsx`).
+
+**Theme.** Light by default. Dark applies when `<html data-theme="dark">` is set, or when the OS prefers dark and `data-theme="light"` isn't set. The dark palette is warm (brown-black, not blue-gray).
+
+### Color
+| Group | Token | Light | Dark | Use |
+|---|---|---|---|---|
+| Background | `--bg-page` | #FAF8F5 | #161513 | The paper every screen sits on |
+| | `--bg-subtle` | #F4F1EC | #1B1A17 | Sidebar, segmented track, pale row actions |
+| | `--bg-surface` | #FFFFFF | #1F1D1A | Drawer panel, inputs |
+| | `--bg-raised` | #FFFFFF | #282521 | Tooltips, toasts (always with `--elevation-popover`) |
+| | `--bg-hover` | #F1EDE7 | #25221F | The one travelling hover highlight (8A) |
+| | `--bg-press` | #EBE6DF | #2B2824 | Press darkens one step; the open row |
+| Text | `--text-primary` | #1C1B19 | #EDEAE4 | Names, values, titles |
+| | `--text-secondary` | #4F4B45 | #BDB7AD | Body copy, subtitles |
+| | `--text-tertiary` | #68635C | #9C968C | Labels, places, context lines |
+| | `--text-disabled` | #A6A097 | #625D56 | Inactive controls only (exempt from 1.4.3; never content) |
+| Lines | `--border-faint` | #EFEBE5 | #221F1C | Table row rules |
+| | `--border-hairline` | #E4E0D9 | #2F2C28 | Section rules, panel edge |
+| | `--border-strong` | #CDC6BB | #46423B | Control outlines, ruler ticks |
+| Accent | `--accent` (ember) | #E2572B | #E2572B | Marks only: focus ring, the ready line, the current-week dot. **Never small text** |
+| | `--accent-strong` | #B5421C | #F07A4F | AA-safe ember: accent text and the primary button fill |
+| | `--accent-strong-press` | #9C3714 | #DE6A40 | Primary button hover/press |
+| | `--accent-subtle` | #FBEAE2 | #33201A | The one-time "crossed the line" row tint |
+| | `--accent-on` | #FFFFFF | #1A0F0A | Text on `--accent-strong` |
+| Status | `--status-ready-fg` / `-bg` | #80560F / #F5ECD8 | #E0B25C / #2B2315 | Ready: warm ochre (hue 38°, distinct from ember at 14°) |
+| | `--status-risk-fg` / `-bg` | #B42318 / #FBE9E6 | #F2877A / #301B18 | At risk |
+| | `--status-healthy-fg` / `-bg` | #2A7353 / #E5F1EA | #6BC096 / #172820 | Healthy |
+| | `--status-neutral-fg` / `-bg` | #68635C / #EFEBE5 | #A9A398 / #25231F | Not yet; the naive model |
+| Data (non-text) | `--data-naive` | #9A958C | #7A746B | The naive series in charts |
+| | `--data-break` / `--data-summer` | #ECE7E0 / #F3F0EB | #26231F / #1E1C19 | Break shading; summer is lighter |
+| Other | `--focus-ring` | = `--accent` | = `--accent` | 2px ring, keyboard focus only |
+| | `--scrim` | warm ink at 24% | black at 42% | Behind the drawer; the list stays legible |
+
+**One accent.** Ember means "act on this": the primary button, the focus ring, the ready line and the current-week mark. "Ready" no longer uses ember: it has its own status color (ochre), and status colors are only ever used for status, always next to the status word.
+
+**Deprecated aliases** (Phase 2 removes their uses): `--paper`→`--bg-page`, `--nav`→`--bg-subtle`, `--card`→`--bg-surface`, `--ink`→`--text-primary`, `--body`→`--text-secondary`, `--muted`→`--text-tertiary`, `--line`→`--border-hairline`, `--row-divider`→`--border-faint`, `--break-shade`→`--data-break`, `--ember`→`--accent`, `--ember-chip-bg`→`--accent-subtle`, `--ember-chip-text`→`--accent-strong`, `--risk`→`--status-risk-fg`, `--risk-chip-bg`→`--status-risk-bg`, `--steady`→`--status-healthy-fg`, `--naive`→`--data-naive`. In light mode these keep the old values, except where AA required a change: `--muted` #6B6760→#68635C, `--body` #3A3833→#4F4B45, `--steady` #2F7D5B→#2A7353.
+
+### Contrast (WCAG 2.x, computed from `tokens.css`)
+Every text pair is AA (4.5:1) in both themes; the ember mark meets the 3:1 non-text minimum. 0 failures.
+
+| Foreground (minimum) | Light | Dark |
+|---|---|---|
+| `--text-primary` (4.5) | page 16.2 · subtle 15.3 · surface 17.2 · raised 17.2 · hover 14.8 · press 13.9 | page 15.2 · subtle 14.5 · surface 14.0 · raised 12.7 · hover 13.2 · press 12.2 |
+| `--text-secondary` (4.5) | page 8.2 · subtle 7.7 · surface 8.7 · raised 8.7 · hover 7.4 · press 7.0 | page 9.2 · subtle 8.7 · surface 8.4 · raised 7.7 · hover 7.9 · press 7.4 |
+| `--text-tertiary` (4.5) | page 5.6 · subtle 5.3 · surface 6.0 · raised 6.0 · hover 5.1 · press 4.8 | page 6.2 · subtle 5.9 · surface 5.7 · raised 5.2 · hover 5.4 · press 5.0 |
+| `--accent-strong` (4.5) | page 5.3 · subtle 5.0 · surface 5.6 · hover 4.8 · accent-subtle 4.8 | page 6.6 · subtle 6.3 · surface 6.1 · hover 5.7 · accent-subtle 5.6 |
+| `--accent-on` (4.5) | on accent-strong 5.6 · on press 7.1 | on accent-strong 6.8 · on press 5.6 |
+| `--status-ready-fg` (4.5) | page 6.1 · surface 6.4 · hover 5.5 · own bg 5.5 | page 9.3 · surface 8.6 · hover 8.1 · own bg 7.9 |
+| `--status-risk-fg` (4.5) | page 6.2 · surface 6.6 · hover 5.6 · own bg 5.6 | page 7.4 · surface 6.8 · hover 6.4 · own bg 6.6 |
+| `--status-healthy-fg` (4.5) | page 5.4 · surface 5.7 · hover 4.9 · own bg 4.9 | page 8.3 · surface 7.7 · hover 7.2 · own bg 7.1 |
+| `--status-neutral-fg` (4.5) | page 5.6 · surface 6.0 · hover 5.1 · own bg 5.0 | page 7.3 · surface 6.7 · hover 6.3 · own bg 6.3 |
+| `--accent` mark / focus ring (3.0, non-text) | page 3.5 · surface 3.7 · hover 3.2 | page 4.9 · surface 4.5 · hover 4.2 |
+
+For comparison, before the upgrade ember text on paper was 3.5:1, white on the ember button 3.7:1, and `--naive` text 2.8:1. All three failed; none of those pairs is used for text any more.
+
+### Type
+Inter for everything; JetBrains Mono (`--font-mono`, class `.k-mono`) only for IDs and commit hashes. One display size, three text sizes, one label size. Letter-spacing tightens as size grows.
+
+| Token | Size / line | Tracking | Weight | Use |
+|---|---|---|---|---|
+| `--text-display` | 28 / 32 | −0.022em | 500 | Page titles, stat values, the drawer's school name |
+| `--text-lg` | 16 / 24 | −0.011em | 500 | Section titles |
+| `--text-md` | 14 / 20 | −0.006em | 400 (500 for names) | Body, table cells |
+| `--text-sm` | 13 / 18 | −0.003em | 400 | Secondary lines, nav items, property labels |
+| `--text-label` | 12 / 16 | 0 | 400; **600 only for table header labels** | Table headers, pills, ruler months, tooltips |
+
+Weights: `--weight-regular` 400, `--weight-medium` 500, `--weight-strong` 600 (table header labels only). No 700. Sentence case everywhere; no all-caps or letter-spaced labels.
+
+**Tabular numerals:** every metric uses `font-variant-numeric: var(--numeric)` (`tabular-nums`) via `.k-num`. `Table` numeric columns, `NumberFlow`, `StatBlock`, `ScoreMeter`, nav counts and pager labels apply it themselves.
+
+### Space, size, radius, elevation, layers
+- **Space (8px scale with a 4px half-step):** `--space-0-5` 4 · `--space-1` 8 · `--space-1-5` 12 · `--space-2` 16 · `--space-3` 24 · `--space-4` 32 · `--space-5` 40 · `--space-6` 48 · `--space-8` 64 · `--space-10` 80.
+- **Size:**
+  - `--size-hairline` 1, `--size-focus-ring` 2;
+  - icons 12/16; `--size-pill` 20;
+  - controls 24/32; `--size-row` 40; `--size-meter` 96 (track 4, tick 12); `--size-ruler` 48;
+  - `--size-topbar` 64, `--size-sidebar` 200, `--size-drawer` 640;
+  - `--size-tooltip` 280, `--size-toast` 360, `--size-search` 240, `--size-row-actions` 288, `--size-content` 1200.
+- **Radius:** `--radius-0` 0 (tables, panels, the drawer) · `--radius-1` 2 (bars, ticks) · `--radius-2` 4 (controls, pills, row actions) · `--radius-3` 6 (popovers, toasts). Nothing larger.
+- **Elevation:** one token, `--elevation-popover`, for tooltips and toasts. The drawer has **no shadow**: just a hairline edge and the scrim (Preymaker).
+- **Layers:** `--z-sticky` 2 · `--z-drawer` 40 · `--z-popover` 50 · `--z-toast` 60.
+
+### Motion
+Exactly §4: `--motion-fast` 120ms, `--motion-base` 200ms, `--motion-slow` 320ms, `--motion-reveal` 600ms, `--ease-enter`, `--ease-exit`.
+- **Derived tokens, not new speeds:**
+  - `--stagger-row` 30ms: first load, first 10 rows only;
+  - `--stagger-cell` 12ms: reading order inside a row;
+  - `--rise` 4px: the only entrance travel;
+  - `--skeleton-pulse` 1600ms: the loading loop.
+- **JS reads the same values** at runtime through `design/motion.ts` (`dur('slow')`, `ease('enter')`, `tr('base','exit')`), so CSS and motion.dev animations can't drift apart.
+- **Reduced motion** (`prefers-reduced-motion: reduce`):
+  - the stagger and `--rise` tokens become 0;
+  - skeleton pulses and button spinners stop;
+  - components that move or clip (Drawer, Table reorder, Nav/Tabs indicators, NumberFlow, Toast) check `useReduce()` and switch to fades or instant swaps.
 
 ## 6. Components
-*(Phase 1 fills this. Base components, each with default, hover, focus, disabled, loading, empty and error states, rendered on the dev-only `/__styleguide` route.)*
+All in `frontend/src/design/components/`, exported from `frontend/src/design/index.ts`. Screens import from `design`, never from a component file. Classes use the `k-` prefix. Every one is rendered, in every state, on the dev-only **`/__styleguide`** route, with sample data and a light/dark switch. Screenshots: `docs/design/styleguide/styleguide-{light,dark}.png`. `npm run styleguide:check` runs the screenshots plus 14 behavior checks. Evidence for each reference: `docs/design/research/evidence-phase1.md`.
+
+| Component | Purpose · key props | States covered | Motion | Reference |
+|---|---|---|---|---|
+| **AppShell**, **TopBar**, **Nav** | Sidebar + main column. `Nav({ groups: [{id, label?, items: [{id, label, count?}]}], activeId, onSelect, brand?, footer? })`; `TopBar({ title, subtitle?, actions?, below? })`: `actions` takes the WeekPager and UpdatingMark; `below` the WeekRuler | Default, hover, focus-visible, press, active (`aria-current="page"`); counts null / 0 / many; long labels truncate | One hover highlight travels between items via `layoutId` over fast; the active item keeps its own background | 1A, 8A (Linear) |
+| **Table** | `Table<T>({ rows, columns: Column<T>[], rowKey, 'aria-label', loading?, error?, empty?, sort?/defaultSort?/onSortChange?, onOpen?, rowActions?, searchRef?, keyboard?: 'table'\|'page', dividers?, tintKeys?, selectedKey?, rowLabel?, onActiveChange?, stickyTop? })`. `Column`: `{ id, header, cell, numeric?, width?, sortValue?, firstDirection?, skeleton?, skeletonLines? }` | Sticky header; sortable headers with `aria-sort`; numeric columns right-aligned and tabular; skeleton (first load), empty (one sentence + action), error (what failed + retry), 1 row, long names (via `TruncatedText`), selected (open) row, divider line ("Ready line · score 60") | **Keys:** j/↓, k/↑ move, ↵ opens, Esc clears, `/` focuses search, single-key row-action shortcuts. **8A:** a highlight travels to the hovered or keyboard row over fast. **9A:** cells fill in reading order on **first load only** (rise + fade, base; rows 30ms apart, first 10). **§3.2:** after that no skeletons; rows slide to their new rank (`layout="position"`, slow, enter) and rows in `tintKeys` get one `--accent-subtle` tint that fades over slow after the slide | 2A (Sui), 8A, 9A (Paradigm) |
+| **RowActions** (`Table` `rowActions`) | `[{ id, label, shortcut?, onSelect, disabled? }]`, e.g. Open ↵ · Copy email `c` · Send to Slack `s` | Hidden at rest; shown on row hover **or** keyboard focus; each a Tab-reachable `<button>`; disabled. Floats over the row's right end (or `reserveActions`) | Fades in over fast | 8B (Terminal) |
+| **SearchField** | `({ value, onChange, placeholder?, onEscape? })`; pass its ref to `Table searchRef` | Empty with `/` hint, typing, focus ring | n/a | 2A |
+| **StatBlock** | `({ label, value, format?, context?, sparkline?, loading?, error?, reveal? })`: a number with one context line | Value, loading (skeleton), error (red context line, value "—"), no value ("—" + reason) | Counts through on change (base); counts up once on first mount (reveal) | 3B |
+| **StatRow** | `({ items: StatRowItem[] })`, one `emphasis` | Ruled row between hairlines, hairline dividers, one stat at full ink | As StatBlock | 3A |
+| **Sparkline** | `({ values, label })` | ≥2 points; <2 renders nothing | none (lanes may reveal once) | 3B context |
+| **NumberFlow**, **useCountThrough** | `NumberFlow({ value, format?, placeholder?, reveal? })`; `useCountThrough(target, { reveal })` | null → placeholder; screen readers get the settled value only | Count-through over base, enter easing; first mount over reveal; reduced motion: instant | 7A (Lassie) |
+| **StatusPill** | `({ tone: 'ready'\|'risk'\|'healthy'\|'neutral', children })`; `statusTone(apiStatusWord)` | All four tones; the word is always printed | none | n/a |
+| **ScoreMeter** | `({ value, threshold, max?, tone?, showValue?, thresholdLabel?, reveal? })`: **threshold always passed in** (`meta.thresholds.*`) | 0, at threshold, 100; all tones; value hidden; `role="meter"` with a spoken threshold | Fill scales over base; the number counts through | n/a |
+| **Drawer**, **DrawerSection** | `Drawer({ open, onClose, title, meta?, pager?: { index, total, onPrev, onNext, label? }, contentKey?, footer?, nextLink?, returnFocusRef?, children })`. Generic: lane C's `AccountDetail` keeps `{ type, school, onClose }` and renders inside it | Open/closed, pager first/middle/last ("Next school →" hidden on last), long title wraps, footer busy button | **Open:** right clip wipe `inset(0 0 0 100%)→inset(0)` over slow, enter; scrim over base; title and meta rise through their own clips; hairlines grow from the left. **Close:** wipe retracts over base, exit; pointer events off immediately. **Pager:** header swaps in place, body cross-fades over base, no re-wipe. **Reduced motion:** opacity only. Focus trap, Esc, focus returns to the row, j/k ↑/↓ | Preymaker (motion), 4A, 4C |
+| **PropertyList** | `({ title?, items: [{ label, value, numeric? }] })` | Long values truncate + tooltip; empty value shows "—" | none | 4A (Playground) |
+| **Tabs**, **SegmentedControl** | `({ options: [{ id, label, count?, disabled? }], value, onChange, 'aria-label' })`; tabs = `tablist`, segmented = `radiogroup` | Selected, hover, focus, disabled, counts incl. 0; ←/→ Home/End | Indicator moves with `layoutId` over base | n/a |
+| **Button**, **Kbd** | `Button({ variant: 'primary'\|'secondary'\|'quiet', size?, loading?, icon?, iconAfter?, shortcut? })` | Default, hover, focus, press, disabled, loading (busy mark, label kept, `aria-busy`), long label truncates | Colors over fast | n/a |
+| **WeekPager** | `({ value, min, max, onChange, demoDate?, disabled? })`: ‹ Mon, Feb 2, 2026 ›, steps by Monday | Bounds disable ‹/›; "Demo date" reset when away from it | n/a | 1A top bar |
+| **WeekRuler** | `({ mondays, value, onChange, onScrub?, breaks?, current?, disabled? })`; `mondaysBetween(meta.sim_start, meta.sim_end)` | Tick per Monday, month labels, breaks shaded (summer lighter), hover ghost, dragging, focus, disabled; `role="slider"` | Gray only; **ember only for the current-week dot**. Click/drag scrubs (`onScrub` live); ←/→, PageUp/PageDown, Home/End; `onChange` fires once per settled week (on release, or after keys pause for slow) | 10B (Eleken) |
+| **UpdatingMark** | `({ active, label? })`: the quiet "Updating…" next to the date | Off, on; `aria-live` | Fades in after a base delay (fast responses never flash it), out over fast | §3.2 |
+| **Tooltip**, **TruncatedText** | `Tooltip({ content, children, side? })`; `TruncatedText({ children })` shows the tooltip only when actually cut off, and is then focusable | Hover (after slow), keyboard focus (immediate), repositions on scroll/resize | Fade over fast | n/a |
+| **Skeleton** | `({ width?, height?: 'line'\|'label'\|'display'\|'control' })` | Shapes for rows, stats, controls | Gentle pulse; still under reduced motion | 9A |
+| **EmptyState**, **ErrorState** | `EmptyState({ children, action? })`: one sentence + one action. `ErrorState({ title, detail?, onRetry?, retrying? })`: what failed + retry | Left-aligned, no icon, no box; retry in flight | none | §7 |
+| **ToastProvider**, **useToast** | `useToast()({ message, tone?, action? })`: bottom-left, ~5s, held on hover/focus | Neutral, success, error (`role="alert"`), with action, dismiss | Rise + fade in over base, fade out over fast | §3.4 confirmations |
+| **PageView**, **usePageTransition** | `go(update)` wraps a screen change in a View Transition; `<PageView key={screen}>` is the region that fades | Supported → View Transition; otherwise a plain fade | Content only: out over fast, in over fast after half of that (180ms total, no movement); nav and top bar excluded | 6A |
+
+**Wiring notes for the lanes:**
+- `Table` is generic. Keep passing the previous rows while a new week loads (TanStack `placeholderData: keepPreviousData`), and it will never show skeletons again.
+- Pass `dividers` only when sorted by score.
+- Pass a **new** `Set` to `tintKeys` for the rows that crossed the line this week.
+- The Drawer pager's `index`/`total` come from the list the rep opened it from; `Table onActiveChange` keeps the two in sync.
 
 ## 7. Rules
-- **Tokens only.** No raw hex, px or ms values in components. `npm run lint:tokens` enforces it (rules and allowlist in §5).
+- **Tokens only.** No raw hex, px or ms values in components; `npm run lint:tokens` enforces it.
+  - **Flagged** in every `.ts`/`.tsx`/`.css` under `src/`, except `src/design/tokens.css`:
+    - hex colors and `rgb()/rgba()/hsl()/hsla()`;
+    - `<n>px`;
+    - `<n>ms` and decimal seconds (`0.2s`);
+    - numeric values for spacing, size, font, radius and duration props in TS style objects (`padding: 12`, `fontSize: 13`, `fontWeight: 600`, `duration: 0.2`);
+    - numeric `font-weight`/`line-height`/`letter-spacing` in CSS.
+  - **Allowlist:**
+    - the values 0 and 1 (hairlines);
+    - percentages;
+    - flex, z-index, opacity and order numbers;
+    - SVG geometry attributes in JSX (`viewBox`, `d`, `width={16}`, `strokeWidth={1.5}`, …);
+    - px inside `@media`/`@container` conditions;
+    - comments;
+    - a line marked `lint-tokens-allow: <reason>` (unused so far).
+  - **Output:** `file:line:col`, a per-folder summary, and a non-zero exit on any finding. `npm run lint:tokens -- src/design` checks one folder.
+  - **Status:** `src/design/**` is at **0**. The rest of `src/` starts Phase 2 at a **baseline of 845** findings (`src/screens` 454, `src/components/detail` 146, `src/components/backtest` 143, top-level `src` files 56, `src/components` 46), and Phase 2 burns it down to 0.
 - **Reuse before creating.** Screens import from the base components; a new pattern needs a DESIGN.md entry first.
 - **Every state is designed:**
   - loading: skeletons shaped like the content;
@@ -108,6 +249,7 @@ No bounce or overshoot, and no UI transition over 400ms. `prefers-reduced-motion
   - 0 and 1 items.
 - **Microcopy is for a rep or CSM:** "9 schools ready to buy this week", not "PQL results".
 - **The data contract is frozen** (`frontend/src/types.ts`). Keep URL state (`?screen`, `as_of`, `school`). Keep the drawer props `{ type, school, onClose }`.
+- **The styleguide is dev-only.** `/__styleguide` loads only when `import.meta.env.DEV`; the production bundle contains none of it (verified by grepping `dist/`).
 
 ## 8. Banned ("vibecoded" tells)
 - Everything wrapped in rounded cards with drop shadows; card grids of identical tiles; icon-in-a-colored-circle stat tiles
