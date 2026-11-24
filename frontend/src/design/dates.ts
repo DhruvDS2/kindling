@@ -1,6 +1,18 @@
 // Week helpers for the date control. Days are 'YYYY-MM-DD' strings in local time (never UTC,
 // which shifts the day in US time zones). The school year is stepped one Monday at a time.
 
+// Perf (Phase 3): toLocaleDateString() builds a new ICU formatter on every call, which showed up in
+// every hot frame (52 ruler ticks, chart axes, drawer dates). One cached Intl.DateTimeFormat per
+// options gives the same strings. All callers pass at least one date field, so the defaults match.
+const dateFormats = new Map<string, Intl.DateTimeFormat>();
+/** `date.toLocaleDateString('en-US', opts)`, with the formatter cached per options. */
+export function formatDate(date: Date, opts: Intl.DateTimeFormatOptions): string {
+  const key = JSON.stringify(opts);
+  let f = dateFormats.get(key);
+  if (!f) { f = new Intl.DateTimeFormat('en-US', opts); dateFormats.set(key, f); }
+  return f.format(date);
+}
+
 export function parseDay(day: string): Date {
   const [y, m, d] = day.slice(0, 10).split('-').map(Number);
   return new Date(y, m - 1, d);
@@ -36,15 +48,15 @@ export function mondaysBetween(start: string, end: string): string[] {
 
 /** "Mon, Feb 2, 2026" */
 export function fmtWeek(day: string): string {
-  return parseDay(day).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  return formatDate(parseDay(day), { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 /** "Feb 2" */
 export function fmtShort(day: string): string {
-  return parseDay(day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return formatDate(parseDay(day), { month: 'short', day: 'numeric' });
 }
 
 /** "Feb" */
 export function fmtMonth(day: string): string {
-  return parseDay(day).toLocaleDateString('en-US', { month: 'short' });
+  return formatDate(parseDay(day), { month: 'short' });
 }

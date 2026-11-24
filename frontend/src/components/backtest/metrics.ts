@@ -155,13 +155,16 @@ export function parseDisplay(text: string | null | undefined): { n: number; suff
 
 export const sentenceCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+let RUN_TIME: Intl.DateTimeFormat | undefined;
 /** generated_at is a real UTC timestamp, so show it in the viewer's time zone. */
 export function fmtRunTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString('en-US', {
+  // Perf (Phase 3): one cached formatter; with timeZoneName each toLocaleString() call was ~1ms.
+  RUN_TIME ??= new Intl.DateTimeFormat('en-US', {
     month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
   });
+  return RUN_TIME.format(d);
 }
 
 /** "Sep 1, 2025 to Jul 27, 2026" from a run's replay range. */

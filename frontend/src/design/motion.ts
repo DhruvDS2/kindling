@@ -46,9 +46,23 @@ export function tr(speed: Speed, easing: Easing = 'enter', extra: Record<string,
   return { duration: dur(speed), ease: ease(easing), ...extra };
 }
 
-/** A per-item delay token in seconds (e.g. --stagger-row). Not cached: reduced motion sets it to 0. */
+// Perf (Phase 3): the stagger and rise tokens change only with prefers-reduced-motion, so they are
+// cached per media state. Reading them uncached meant a getComputedStyle() inside layout effects
+// (e.g. every Table mount), which forced a synchronous style + layout of the whole new page: 49ms
+// of the Backtest page switch. matchMedia() is a cheap lookup and never forces style.
+const reducedQuery = typeof window !== 'undefined' && window.matchMedia
+  ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+const motionTokenCache = new Map<string, string>();
+function cachedMotionToken(name: string): string {
+  const key = `${name}|${reducedQuery?.matches ? 'reduce' : 'full'}`;
+  let v = motionTokenCache.get(key);
+  if (v === undefined) { v = readToken(name, false); if (v) motionTokenCache.set(key, v); }
+  return v;
+}
+
+/** A per-item delay token in seconds (e.g. --stagger-row); 0 under reduced motion. */
 export function stagger(name: 'row' | 'cell'): number {
-  return toSeconds(readToken(`--stagger-${name}`, false));
+  return toSeconds(cachedMotionToken(`--stagger-${name}`));
 }
 
 /** True when the OS asks for reduced motion. Components then fade instead of moving or clipping. */
@@ -58,5 +72,5 @@ export function useReduce(): boolean {
 
 /** The entrance travel distance (--rise) in px; 0 under reduced motion. */
 export function risePx(): number {
-  return parseFloat(readToken('--rise', false)) || 0;
+  return parseFloat(cachedMotionToken('--rise')) || 0;
 }
