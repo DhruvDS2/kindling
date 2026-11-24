@@ -228,10 +228,55 @@
   - **New dependency:** `playwright` (frontend dev only). Reason: the gate needs screenshots of every screen. `npm run screenshots` uses the installed Chrome and fails on console errors or failed API calls.
   - **Streamlit:** a read-only backup now, with no Slack path and no webhook secrets.
 
+- **2026-11-23 → 11-24:** UI upgrade run (`kindling-ui-upgrade`) on branch `ui-upgrade`. **The UI is done.** Gate: **PASSED** (`docs/gates/UI-UPGRADE-GATE.md`). `main` (`1235173`) and `ui` (`19e7830`) were untouched throughout. Paused twice (travel, then overnight) and resumed from `docs/RESUME-PLAN.md` each time.
+  - **Goal:** upgrade the existing console so it reads like a carefully designed B2B product (Linear / Attio / Stripe level) and not "vibecoded". Precise, warm, calm, with restrained motion.
+  - **Phase 0, audit and picks:**
+    - `docs/design/AUDIT.md` found 10 problems: box soup; ember doing five jobs (and failing AA as text); 13 font sizes; 6,500px lists; a Brief that didn't brief; no motion explaining change; the native date input; a lab-report Backtest; no tokens or dark theme; red left-border alerts.
+    - References: details.so for motion only, real products for structure. Dhruv picked:
+      - **Structure:** 1A grouped sidebar, 2A table, 3B/3A stats, 4A properties + 4C pager, 5A/5B charts.
+      - **Motion:** 6A cross-fade, 7A count-through, 8A hover + 8B row actions, 9A first-load fill, 10B week ruler.
+      - **Drawer:** the Preymaker drawer.
+      - **"Ready":** warm ochre (#80560F light, #E0B25C dark). Ember is the single "act on this" accent.
+    - All recorded with Details IDs in DESIGN.md §2–§3.
+  - **Phase 1, tokens and base:**
+    - `frontend/src/design/`: light plus warm-dark tokens, every text pair AA.
+    - `motion` 14 for layout and shared transitions.
+    - About 25 base components: shell, table, drawer, week pager and ruler, stats, toasts…
+    - A dev-only `/__styleguide`, and `npm run lint:tokens` (no raw hex, px or ms outside `tokens.css`).
+  - **Phase 2, 5 parallel lanes:**
+    - **A, shell:** week pager and ruler, in-place week stepping, the 6A cross-fade, code-split.
+    - **B:** the Brief (narrative, deltas, sparklines) and Ready to buy.
+    - **C:** At risk and the school drawer: Preymaker right-side wipe, j/k pager, "Next school →", and the school-days / calendar-days toggle.
+    - **D:** an editorial Backtest (headline, four-stat row, bars that grow once, district before/after).
+    - **E:** Prospects, Pipeline and Automations on base components.
+  - **Phase 3, QA and gate:**
+    - Cleanup: deprecated aliases and legacy files removed; dark chart shades fixed; one root toast system.
+    - `npm run design:capture` records after-screens (light and dark), 3 videos, long tasks and reduced motion.
+    - A perf pass: memoized table rows, viewport-only reorder, deferred week updates, drawer transitions, idle Backtest sections.
+  - **Results:**
+
+    | Check | Result |
+    |---|---|
+    | Build | 0 TypeScript errors |
+    | Tests | pytest 33 passed |
+    | Token lint | 862 → **0** |
+    | Initial JS | 739 kB → **258 KiB** |
+    | Long tasks | **0** on every transition in the production build (week step 9 and 85 rows, drawer open, drawer j/k, switch to Backtest) |
+    | Reduced motion | Fades only |
+    | Banned "vibecoded" tells | All 7 absent |
+    | Audit problems | All 10 FIXED, with screenshots |
+
+    Evidence: `docs/design/COMPARE.md` (before / after / reference per screen), `docs/design/after/`, `docs/design/videos/`.
+  - **Perf lesson:** the first measurement (dev server, a heavily loaded machine) showed 50–150ms long tasks. In the production build every transition was already under 50ms of CPU. Measure perf on `vite preview`, and use per-task CPU time when the machine is busy.
+  - **Repo hygiene:** `docs/design/refs/` (third-party reference frames) is gitignored, because the repo is public. The Details MCP ran out of monthly credits mid-run; every reference was already recorded.
+  - **Housekeeping:** `origin/ui-upgrade-p3-perf` still points at an old WIP commit. The lane squashed it locally, and a normal push was rejected; it isn't force-pushed. All its final commits are in `ui-upgrade`.
+
 ## What's left
-- Review the `ui` branch (`docs/gates/UI-GATE.md`) and decide whether to merge it into `main`
-- Re-import `n8n/kindling_weekly.json` into n8n
-- 2-minute demo video (deferred until the UI changes land)
+- Dhruv: review `ui-upgrade` (the finished UI) and decide the merge: `ui-upgrade` → `ui` → `main`. Merging also brings `main`'s README and LEARN.md up to date (they still say 83% / 100%).
+- **2-minute demo video (TASKS 4.5): next.** The UI is done.
+- Re-import `n8n/kindling_weekly.json` into n8n (it no longer sends today's date).
+- Tidy the stale `origin/ui-upgrade-p3-perf` branch (force-push or delete, Dhruv's call).
+- Non-blocking follow-ups from the gate: small base component APIs, and the unused Tailwind directives in `index.css`.
 - On real data: tune thresholds with `backtest.py sweep --db`, source real district calendars, and rerun the admin rule
 
 ## How real data would work
