@@ -1,272 +1,209 @@
-import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchPipelineFunnel, postSnapshot } from '../api';
-import { useAsOf, usePql } from '../asOf';
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { fetchPipelineFunnel, fetchPql, postSnapshot } from '../api';
+import { useAsOf } from '../asOf';
 import { fmtDay } from '../nav';
-import type { PipelineFunnelData, FunnelSnapshot, PqlStatus } from '../types';
-import ScoreChip from '../components/ScoreChip';
-import { SkeletonCard } from '../components/Skeleton';
+import type { FunnelSnapshot, PipelineFunnelData, StageMove } from '../types';
+import {
+  Button, EmptyState, ErrorState, StatRow, StatusPill, Table, TruncatedText,
+  fmtShort, statusTone, type Column,
+} from '../design';
 
-// The funnel tiles are live: free schools scored for the as-of date (GET /pql).
-// The history below is saved snapshots (GET /pipeline/funnel), compared to the
-// latest snapshot taken before the as-of date.
+// Pipeline: the stat row is live (free schools scored for as_of, GET /pql). The history below is
+// saved snapshots (GET /pipeline/funnel); the stats compare against the newest snapshot taken
+// before the date on screen.
 
-const card = { background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 12, padding: 20 } as const;
-const mono = 'JetBrains Mono, monospace';
+const stack: CSSProperties = { display: 'flex', flexDirection: 'column', minWidth: 0 };
 
-type Stage = 'not_yet' | 'ready';
-const STAGE_STATUS: Record<Stage, PqlStatus> = { not_yet: 'Not yet', ready: 'Ready' };
+/** "+2", "−3" (true minus sign), "0". */
+const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${Math.abs(n)}` : '0');
 
-function DeltaBadge({ value, base }: { value: number | null; base: FunnelSnapshot | null }) {
-  if (value === null || !base) {
-    return <span style={{ fontSize: 13, color: 'var(--muted)' }}>No earlier snapshot to compare</span>;
-  }
-  const color = value > 0 ? 'var(--steady)' : value < 0 ? 'var(--risk)' : 'var(--muted)';
+function SectionHead({ title, context, aside }: { title: ReactNode; context?: ReactNode; aside?: ReactNode }) {
   return (
-    <span style={{ fontSize: 13, color: 'var(--muted)' }}>
-      <span style={{ color, fontFamily: mono, fontWeight: 600 }}>{value > 0 ? '+' : ''}{value}</span>
-      {' '}vs snapshot of {fmtDay(base.as_of)}
-    </span>
+    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 'var(--space-2)', marginBottom: 'var(--space-1-5)' }}>
+      <div style={{ ...stack, flex: 1, gap: 'var(--space-0-5)' }}>
+        <h2 className="k-text-lg k-medium k-primary">{title}</h2>
+        {context && <p className="k-text-sm k-tertiary" style={{ margin: 0 }}>{context}</p>}
+      </div>
+      {aside}
+    </div>
   );
 }
 
-function FunnelTile({ label, value, delta, base, valueColor, active, onClick }: {
-  label: string;
-  value: number;
-  delta: number | null;
-  base: FunnelSnapshot | null;
-  valueColor?: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-expanded={active}
-      style={{
-        ...card,
-        flex: 1,
-        textAlign: 'left',
-        font: 'inherit',
-        cursor: 'pointer',
-        border: `1px solid ${active ? (valueColor ?? 'var(--ink)') : 'var(--line)'}`,
-        transition: 'border-color 0.15s',
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8 }}>{label}</div>
-        <span style={{ fontSize: 11, color: 'var(--muted)' }}>{active ? 'Hide schools ▲' : 'Show schools ▼'}</span>
-      </div>
-      <div style={{ fontSize: 40, fontWeight: 700, fontFamily: mono, color: valueColor ?? 'var(--ink)', lineHeight: 1.1, marginBottom: 8 }}>
-        {value}
-      </div>
-      <DeltaBadge value={delta} base={base} />
-    </button>
-  );
-}
+type SnapshotRow = FunnelSnapshot & { change: number | null; compared: boolean; after: boolean; current: boolean };
 
 export default function Pipeline() {
   const { asOf, meta } = useAsOf();
   const queryClient = useQueryClient();
-  const [snapping, setSnapping] = useState(false);
-  const [snapError, setSnapError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Stage | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const pql = usePql();
+  const pql = useQuery({ queryKey: ['pql', asOf], queryFn: () => fetchPql(asOf), placeholderData: keepPreviousData });
   const funnel = useQuery<PipelineFunnelData>({ queryKey: ['pipeline'], queryFn: fetchPipelineFunnel });
 
-  async function handleSnapshot() {
-    setSnapping(true);
-    setSnapError(null);
+  // Saves every free school's status for as_of (POST /snapshot/pql). Only ever on a click.
+  async function save() {
+    if (saving) return;
+    setSaving(true);
+    setSaveError(null);
     try {
       await postSnapshot(asOf);
       await queryClient.invalidateQueries({ queryKey: ['pipeline'] });
     } catch (e: unknown) {
-      setSnapError(e instanceof Error ? e.message : 'Snapshot failed');
+      setSaveError(e instanceof Error ? e.message : 'Unknown error');
     } finally {
-      setSnapping(false);
+      setSaving(false);
     }
   }
 
-  if (pql.error || funnel.error) {
-    const err = (pql.error ?? funnel.error) as Error;
-    return <div style={{ color: 'var(--muted)', fontSize: 14 }}>Failed to load ({err.message}). Is the API running?</div>;
-  }
-
-  if (pql.isLoading || funnel.isLoading) {
-    return (
-      <div>
-        <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
-          {[0, 1].map(i => <SkeletonCard key={i} rows={3} />)}
-        </div>
-        <SkeletonCard rows={6} />
-      </div>
-    );
-  }
-
-  const scores = pql.data ?? [];
-  const live = {
-    not_yet: scores.filter(s => s.status === 'Not yet').length,
+  const day = fmtDay(asOf);
+  const scores = pql.data;
+  const live = scores && {
+    total: scores.length,
     ready: scores.filter(s => s.status === 'Ready').length,
+    notYet: scores.filter(s => s.status === 'Not yet').length,
   };
-  const { snapshots, latest, prev, moves } = funnel.data ?? { snapshots: [], latest: null, prev: null, moves: [] };
+  const snapshots = useMemo(() => funnel.data?.snapshots ?? [], [funnel.data]);
   // The newest snapshot taken before the date on screen: what "this week" is compared to.
-  const base = [...snapshots].filter(s => s.as_of < asOf).sort((a, b) => a.as_of.localeCompare(b.as_of)).at(-1) ?? null;
-  const delta = (k: Stage) => (base ? live[k] - base[k] : null);
-  const toggle = (k: Stage) => setExpanded(e => (e === k ? null : k));
+  const base = useMemo(
+    () => [...snapshots].filter(s => s.as_of < asOf).sort((a, b) => a.as_of.localeCompare(b.as_of)).at(-1) ?? null,
+    [snapshots, asOf],
+  );
+  const savedForDay = snapshots.some(s => s.as_of === asOf);
 
-  const list = expanded
-    ? scores.filter(s => s.status === STAGE_STATUS[expanded]).sort((a, b) => b.pql_score - a.pql_score)
-    : [];
+  const historyRows = useMemo<SnapshotRow[]>(() => {
+    const asc = [...snapshots].sort((a, b) => a.as_of.localeCompare(b.as_of));
+    return asc.map((s, i) => ({
+      ...s,
+      change: i > 0 ? s.ready - asc[i - 1].ready : null,
+      compared: s.as_of === base?.as_of,
+      after: s.as_of > asOf,
+      current: s.as_of === asOf,
+    })).reverse();
+  }, [snapshots, base, asOf]);
+
+  const context = (n: number | undefined, then: number | undefined, outOf: string) => {
+    if (n == null) return undefined;
+    if (base && then != null) return `${n === then ? 'No change' : signed(n - then)} since the ${fmtShort(base.as_of)} snapshot`;
+    return outOf;
+  };
+
+  const historyColumns = useMemo<Column<SnapshotRow>[]>(() => [
+    {
+      id: 'date', header: 'Snapshot', width: '34%', skeleton: '50%',
+      cell: r => {
+        const note = r.current ? 'The date on screen' : r.compared ? 'Compared above' : r.after ? `After ${fmtShort(asOf)}` : null;
+        return (
+          <div style={stack}>
+            <span className={r.after ? 'k-tertiary' : undefined}>{fmtDay(r.as_of)}</span>
+            {note && <span className="k-text-sm k-tertiary">{note}</span>}
+          </div>
+        );
+      },
+    },
+    { id: 'ready', header: 'Ready', numeric: true, width: '14%', cell: r => <span className={r.after ? 'k-tertiary' : undefined}>{r.ready}</span> },
+    { id: 'notYet', header: 'Not yet', numeric: true, width: '14%', cell: r => <span className={r.after ? 'k-tertiary' : undefined}>{r.not_yet}</span> },
+    {
+      id: 'change', header: 'Change in Ready', numeric: true, width: '16%',
+      cell: r => (r.change == null ? <span className="k-tertiary">—</span> : <span className={r.after ? 'k-tertiary' : 'k-secondary'}>{signed(r.change)}</span>),
+    },
+    { id: 'spacer', header: '', skeleton: false, cell: () => null },
+  ], [asOf]);
+
+  const moveColumns = useMemo<Column<StageMove>[]>(() => [
+    { id: 'school', header: 'School', width: '34%', cell: m => <TruncatedText className="k-medium">{m.name}</TruncatedText> },
+    { id: 'from', header: 'From', width: '14%', cell: m => <StatusPill tone={statusTone(m.from_status)}>{m.from_status}</StatusPill> },
+    { id: 'to', header: 'To', width: '14%', cell: m => <StatusPill tone={statusTone(m.to_status)}>{m.to_status}</StatusPill> },
+    { id: 'date', header: 'Snapshot', cell: m => <span className="k-secondary">{fmtDay(m.as_of)}</span> },
+  ], []);
+
+  const saveFailed = saveError && (
+    <ErrorState title={`Couldn't save the ${day} snapshot.`} detail={saveError} onRetry={() => { void save(); }} retrying={saving} />
+  );
+  const { latest, prev, moves } = funnel.data ?? { latest: null, prev: null, moves: [] };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ fontSize: 13, color: 'var(--muted)' }}>
-        Free schools scored on {fmtDay(asOf)}: Ready at a PQL score of {meta.thresholds.pql_ready} or more.
-      </div>
+    <div data-testid="pipeline" style={{ ...stack, gap: 'var(--space-6)' }}>
+      <section aria-label="Free schools this week">
+        <SectionHead
+          title="Free schools by stage"
+          context={`Scored live for ${day}. Ready means a readiness score of ${meta.thresholds.pql_ready} or more.`}
+        />
+        {pql.error && !pql.data ? (
+          <ErrorState
+            title={`Couldn't score free schools for ${day}.`}
+            detail={(pql.error as Error).message}
+            onRetry={() => { void pql.refetch(); }}
+            retrying={pql.isFetching}
+          />
+        ) : (
+          <StatRow items={[
+            {
+              label: 'Ready to buy', value: live?.ready, loading: !live, emphasis: true,
+              context: live && context(live.ready, base?.ready, `Of ${live.total.toLocaleString('en-US')} free schools`),
+            },
+            {
+              label: 'Not yet', value: live?.notYet, loading: !live,
+              context: live && context(live.notYet, base?.not_yet, `Below ${meta.thresholds.pql_ready}, of ${live.total.toLocaleString('en-US')} free schools`),
+            },
+          ]} />
+        )}
+      </section>
 
-      <div style={{ display: 'flex', gap: 16 }}>
-        <FunnelTile label="Not yet" value={live.not_yet} delta={delta('not_yet')} base={base}
-          active={expanded === 'not_yet'} onClick={() => toggle('not_yet')} />
-        <FunnelTile label="Ready to buy" value={live.ready} delta={delta('ready')} base={base} valueColor="var(--ember)"
-          active={expanded === 'ready'} onClick={() => toggle('ready')} />
-      </div>
-
-      {expanded !== null && (
-        <div style={card}>
-          <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 14 }}>
-            {expanded === 'ready' ? 'Ready to buy' : 'Not yet'} · {fmtDay(asOf)}
-          </div>
-          {list.length === 0 ? (
-            <div style={{ color: 'var(--muted)', fontSize: 14 }}>No schools in this stage on {fmtDay(asOf)}.</div>
-          ) : (
-            <>
-              <div style={{
-                display: 'grid', gridTemplateColumns: '1fr 140px', gap: 8, paddingBottom: 8,
-                borderBottom: '1px solid var(--row-divider)', fontSize: 12, color: 'var(--muted)',
-              }}>
-                <span>School</span>
-                <span>PQL score</span>
-              </div>
-              {list.map((school, i) => (
-                <div key={school.school_id} style={{
-                  display: 'grid', gridTemplateColumns: '1fr 140px', gap: 8, padding: '9px 0', alignItems: 'center',
-                  borderBottom: i < list.length - 1 ? '1px solid var(--row-divider)' : 'none',
-                }}>
-                  <span style={{ fontSize: 14, color: 'var(--ink)', fontWeight: expanded === 'ready' ? 600 : 400 }}>{school.name}</span>
-                  <span><ScoreChip score={school.pql_score} type="pql" status={school.status} /></span>
-                </div>
-              ))}
-            </>
+      <section aria-label="Snapshot history">
+        <SectionHead
+          title="Snapshot history"
+          context="Each snapshot keeps every free school's stage for one date. The weekly n8n run saves one."
+          aside={snapshots.length > 0 && (savedForDay
+            ? <span className="k-text-sm k-tertiary">{fmtShort(asOf)} is saved</span>
+            : <Button variant="secondary" size="sm" loading={saving} onClick={() => { void save(); }}>Save {fmtShort(asOf)} snapshot</Button>)}
+        />
+        {snapshots.length > 0 && saveFailed}
+        <Table
+          aria-label="Saved snapshots, newest first"
+          rows={historyRows}
+          columns={historyColumns}
+          rowKey={r => r.as_of}
+          loading={funnel.isLoading}
+          skeletonRows={3}
+          error={funnel.error ? (
+            <ErrorState
+              title="Couldn't load the snapshot history."
+              detail={(funnel.error as Error).message}
+              onRetry={() => { void funnel.refetch(); }}
+              retrying={funnel.isFetching}
+            />
+          ) : undefined}
+          empty={saveFailed || (
+            <EmptyState action={{ label: saving ? 'Saving snapshot…' : 'Save snapshot', onClick: () => { void save(); } }}>
+              No snapshots yet. Save one for {day} to compare next week.
+            </EmptyState>
           )}
-        </div>
+        />
+      </section>
+
+      {snapshots.length > 0 && (
+        <section aria-label="Stage moves">
+          <SectionHead
+            title="Stage moves"
+            context={latest && prev ? `Schools that changed stage between the ${fmtDay(prev.as_of)} and ${fmtDay(latest.as_of)} snapshots.` : 'Schools that changed stage between the last two snapshots.'}
+          />
+          <Table
+            aria-label="Stage moves between the last two snapshots"
+            rows={moves}
+            columns={moveColumns}
+            rowKey={m => `${m.school_id}-${m.as_of}`}
+            rowLabel={m => m.name}
+            empty={
+              <EmptyState>
+                {snapshots.length < 2
+                  ? 'Stage moves show up once a second snapshot is saved.'
+                  : 'No school changed stage between the last two snapshots.'}
+              </EmptyState>
+            }
+          />
+        </section>
       )}
-
-      {/* Snapshot history */}
-      <div style={card}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12 }}>
-          <span style={{ fontWeight: 600, fontSize: 15 }}>
-            Snapshot history{snapshots.length > 0 && ` · ${snapshots.length} week${snapshots.length !== 1 ? 's' : ''}`}
-          </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {snapError && <span style={{ fontSize: 13, color: 'var(--risk)' }}>{snapError}</span>}
-            <button
-              onClick={handleSnapshot}
-              disabled={snapping}
-              style={{
-                padding: '7px 16px', borderRadius: 8, border: '1px solid var(--ember)',
-                background: snapping ? 'var(--line)' : 'var(--ember)', color: snapping ? 'var(--muted)' : '#fff',
-                fontFamily: 'Inter', fontSize: 13, fontWeight: 600, cursor: snapping ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {snapping ? 'Taking snapshot…' : `Snapshot ${fmtDay(asOf)}`}
-            </button>
-          </div>
-        </div>
-
-        {snapshots.length === 0 ? (
-          <div data-testid="pipeline-empty" style={{ padding: '24px 0 8px', color: 'var(--muted)', fontSize: 14, lineHeight: 1.6, maxWidth: 720 }}>
-            <div style={{ color: 'var(--ink)', fontWeight: 600, marginBottom: 4 }}>No snapshots saved yet</div>
-            A snapshot saves every free school's PQL status for one date, so this page can show week-over-week
-            changes and which schools moved stage. The weekly n8n run saves one when it runs, or use the button above
-            to save one for {fmtDay(asOf)}. The tiles above don't need snapshots: they are scored live.
-          </div>
-        ) : (
-          <>
-            <div style={{
-              display: 'grid', gridTemplateColumns: '180px 1fr 1fr', gap: 8, paddingBottom: 8,
-              borderBottom: '1px solid var(--row-divider)', fontSize: 12, color: 'var(--muted)',
-            }}>
-              <span>Date</span>
-              <span>Not yet</span>
-              <span>Ready</span>
-            </div>
-            {[...snapshots].reverse().map((snap, i) => {
-              const isBase = base?.as_of === snap.as_of;
-              const after = snap.as_of > asOf;
-              return (
-                <div key={snap.as_of} style={{
-                  display: 'grid', gridTemplateColumns: '180px 1fr 1fr', gap: 8, padding: '10px 0', alignItems: 'center',
-                  borderBottom: i < snapshots.length - 1 ? '1px solid var(--row-divider)' : 'none',
-                  opacity: after ? 0.55 : 1,
-                }}>
-                  <span style={{ fontFamily: mono, fontSize: 13, color: 'var(--muted)' }}>
-                    {fmtDay(snap.as_of)}
-                    {isBase && <span style={{ fontFamily: 'Inter', fontSize: 11, marginLeft: 6 }}>compared</span>}
-                    {after && <span style={{ fontFamily: 'Inter', fontSize: 11, marginLeft: 6 }}>after as-of date</span>}
-                  </span>
-                  <span style={{ fontFamily: mono, fontSize: 14, color: 'var(--ink)' }}>{snap.not_yet}</span>
-                  <span style={{ fontFamily: mono, fontSize: 14, color: 'var(--ember)', fontWeight: 600 }}>{snap.ready}</span>
-                </div>
-              );
-            })}
-          </>
-        )}
-      </div>
-
-      {/* Stage moves */}
-      <div style={card}>
-        <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 16 }}>
-          Stage moves
-          <span style={{ fontWeight: 400, color: 'var(--muted)', fontSize: 13 }}>
-            {latest && prev ? ` · ${fmtDay(prev.as_of)} to ${fmtDay(latest.as_of)}` : ' · between the last two snapshots'}
-          </span>
-        </div>
-
-        {moves.length === 0 ? (
-          <div style={{ color: 'var(--muted)', fontSize: 14 }}>
-            {snapshots.length < 2
-              ? 'Stage moves appear once two snapshots are saved.'
-              : 'No schools changed stage between the last two snapshots.'}
-          </div>
-        ) : (
-          <>
-            <div style={{
-              display: 'grid', gridTemplateColumns: '1fr 120px 120px 140px', gap: 8, paddingBottom: 8,
-              borderBottom: '1px solid var(--row-divider)', fontSize: 12, color: 'var(--muted)',
-            }}>
-              <span>School</span>
-              <span>From</span>
-              <span>To</span>
-              <span>Date</span>
-            </div>
-            {moves.map((move, i) => (
-              <div key={`${move.school_id}-${move.as_of}`} style={{
-                display: 'grid', gridTemplateColumns: '1fr 120px 120px 140px', gap: 8, padding: '10px 0', alignItems: 'center',
-                borderBottom: i < moves.length - 1 ? '1px solid var(--row-divider)' : 'none',
-              }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{move.name}</span>
-                <span style={{ fontSize: 13, color: 'var(--muted)' }}>{move.from_status}</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: move.to_status === 'Ready' ? 'var(--ember)' : 'var(--muted)' }}>
-                  {move.to_status}
-                </span>
-                <span style={{ fontSize: 13, color: 'var(--muted)', fontFamily: mono }}>{fmtDay(move.as_of)}</span>
-              </div>
-            ))}
-          </>
-        )}
-      </div>
     </div>
   );
 }
