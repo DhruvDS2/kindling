@@ -92,7 +92,7 @@ All are details.so entries with their stable ID. Each lane calls `get_inspiratio
 No bounce or overshoot, and no UI transition over 400ms. `prefers-reduced-motion: reduce` means fades only. Libraries: `motion` (motion.dev) for layout and shared transitions; the View Transitions API for route changes.
 
 ## 5. Tokens
-Source: `frontend/src/design/tokens.css` (the only file allowed raw values). It evolves the pre-upgrade palette rather than replacing it: the warm paper, ink and ember stay; the old names are kept as **deprecated aliases** until Phase 2 migrates the screens off them. Load order: `tokens.css` → `base.css` → `index.css` (in `main.tsx`).
+Source: `frontend/src/design/tokens.css` (the only file allowed raw values). It evolves the pre-upgrade palette rather than replacing it: the warm paper, ink and ember stay; the old names were kept as deprecated aliases during Phase 2 and **removed in Phase 3** once no screen used them. Load order: `tokens.css` → `base.css` → `index.css` (in `main.tsx`).
 
 **Theme.** Light by default. Dark applies when `<html data-theme="dark">` is set, or when the OS prefers dark and `data-theme="light"` isn't set. The dark palette is warm (brown-black, not blue-gray).
 
@@ -122,13 +122,13 @@ Source: `frontend/src/design/tokens.css` (the only file allowed raw values). It 
 | | `--status-healthy-fg` / `-bg` | #2A7353 / #E5F1EA | #6BC096 / #172820 | Healthy |
 | | `--status-neutral-fg` / `-bg` | #68635C / #EFEBE5 | #A9A398 / #25231F | Not yet; the naive model |
 | Data (non-text) | `--data-naive` | #9A958C | #7A746B | The naive series in charts |
-| | `--data-break` / `--data-summer` | #ECE7E0 / #F3F0EB | #26231F / #1E1C19 | Break shading; summer is lighter |
+| | `--data-break` / `--data-summer` | #ECE7E0 / #F3F0EB | #36322B / #2A2722 | Break shading; summer is lighter. Dark lifted in Phase 3: 1.32:1 / 1.13:1 against the surface, matching light's 1.23 / 1.14 |
 | Other | `--focus-ring` | = `--accent` | = `--accent` | 2px ring, keyboard focus only |
 | | `--scrim` | warm ink at 24% | black at 42% | Behind the drawer; the list stays legible |
 
 **One accent.** Ember means "act on this": the primary button, the focus ring, the ready line and the current-week mark. "Ready" no longer uses ember: it has its own status color (ochre), and status colors are only ever used for status, always next to the status word.
 
-**Deprecated aliases** (Phase 2 removes their uses): `--paper`→`--bg-page`, `--nav`→`--bg-subtle`, `--card`→`--bg-surface`, `--ink`→`--text-primary`, `--body`→`--text-secondary`, `--muted`→`--text-tertiary`, `--line`→`--border-hairline`, `--row-divider`→`--border-faint`, `--break-shade`→`--data-break`, `--ember`→`--accent`, `--ember-chip-bg`→`--accent-subtle`, `--ember-chip-text`→`--accent-strong`, `--risk`→`--status-risk-fg`, `--risk-chip-bg`→`--status-risk-bg`, `--steady`→`--status-healthy-fg`, `--naive`→`--data-naive`. In light mode these keep the old values, except where AA required a change: `--muted` #6B6760→#68635C, `--body` #3A3833→#4F4B45, `--steady` #2F7D5B→#2A7353.
+**Old names, retired:** `--paper`, `--ink`, `--ember` and the rest were removed in Phase 3. AA changes they carried still hold: muted text #68635C (was #6B6760), secondary text #4F4B45 (was #3A3833), healthy #2A7353 (was #2F7D5B).
 
 ### Contrast (WCAG 2.x, computed from `tokens.css`)
 Every text pair is AA (4.5:1) in both themes; the ember mark meets the 3:1 non-text minimum. 0 failures.
@@ -221,6 +221,14 @@ All in `frontend/src/design/components/`, exported from `frontend/src/design/ind
 - Pass `dividers` only when sorted by score.
 - Pass a **new** `Set` to `tintKeys` for the rows that crossed the line this week.
 - The Drawer pager's `index`/`total` come from the list the rep opened it from; `Table onActiveChange` keeps the two in sync.
+
+### 6.x Patterns added in Phase 2 (lane-local, built only from base components)
+- **DrawerListContext** (`src/drawerList.tsx`). The list screens publish the ids of their visible rows in on-screen order. The drawer's 4C pager, j/k and "Next school →" read it. With no provider, there's no pager.
+- **Section with a disclosure row** (`components/backtest/Section.tsx`). A section title with a short lede on the left and content on the right. Secondary tables and experiments sit behind a disclosure row: a chevron plus a one-line takeaway, opened with Enter or Space, with its height animated over **base**.
+- **Hero bars** (`components/backtest/HeroBars.tsx`, 5B). One row per metric: a Kindling bar in ink over a naive bar in neutral, each with a labeled value. They grow once when scrolled into view (**reveal**) and are full immediately under reduced motion. Rows where naive wins are marked "naive ahead".
+- **District before/after** (`components/backtest/DistrictExperiment.tsx`). A SegmentedControl switches the bars between "One national calendar" and "District calendars". Values morph and count through over **base**.
+- **Usage, two panels** (`components/detail/Usage.tsx`, 5A). Active teachers as a line above weekly session bars on one shared time axis, with breaks and summer shaded from the school's own calendar. The School days / Calendar days toggle morphs the window markers and the change sentence.
+- **Week ruler in the top bar** (`src/shell/ShellTopBar.tsx`). There's no pager or ruler on screens that don't depend on `as_of` (Backtest, Automations); Backtest shows its replay range instead.
 
 ## 7. Rules
 - **Tokens only.** No raw hex, px or ms values in components; `npm run lint:tokens` enforces it.
