@@ -1,0 +1,240 @@
+/* The school detail drawer's content (lane C). Tokens only: npm run lint:tokens. */
+
+.kd-body { --kd-break: var(--data-break); display: flex; flex-direction: column; min-width: 0; }
+/* Dark: --data-break is darker than nothing on --bg-surface (1.1:1), so breaks use the hairline
+   step instead. Same two selectors as tokens.css uses for the dark theme. */
+:root[data-theme="dark"] .kd-body { --kd-break: var(--border-hairline); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .kd-body { --kd-break: var(--border-hairline); } }
+/* The header already ends on a hairline; the first section doesn't draw a second one. */
+.kd-body > .k-drawer__section:first-child > .k-drawer__rule { display: none; }
+
+/* Header meta: the decision line under the school name. */
+.kd-meta__rule { color: var(--text-tertiary); }
+.kd-meta__line { flex-basis: 100%; color: var(--text-secondary); }
+.kd-meta__num { color: var(--text-primary); font-weight: var(--weight-medium); }
+
+/* 4A properties: the base PropertyList, given a little more room for the label column. */
+.kd-facts { padding-top: 0; }
+.kd-facts .k-props__list { grid-template-columns: minmax(0, 2fr) minmax(0, 5fr); }
+
+/* Data from a previous week stays on screen while the new one loads, slightly quieter. */
+.kd-stale { transition: opacity var(--motion-base) var(--ease-enter); }
+.kd-stale.is-stale { opacity: 0.6; }
+
+.kd-note {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  letter-spacing: var(--tracking-sm);
+  color: var(--text-tertiary);
+  max-width: 64ch;
+}
+.kd-note--secondary { color: var(--text-secondary); }
+
+/* Loading: shaped like the chart or list it stands in for. */
+.kd-skeleton { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-0-5) 0; }
+.kd-skeleton__chart {
+  display: block;
+  border-radius: var(--radius-1);
+  background: var(--bg-skeleton);
+  animation: k-skeleton-pulse var(--skeleton-pulse) ease-in-out infinite;
+}
+.kd-skeleton__chart--tall { height: calc(var(--size-row) * 6); }
+.kd-skeleton__chart--short { height: calc(var(--size-row) * 4); }
+@media (prefers-reduced-motion: reduce) { .kd-skeleton__chart { animation: none; } }
+
+/* Why: a readable list, no chips. Text · since · points bar · points. */
+.kd-reasons { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.kd-reason {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto calc(var(--size-meter) / 2) calc(var(--space-6) + var(--space-1));
+  align-items: baseline;
+  column-gap: var(--space-1-5);
+  padding: var(--space-1) 0;
+  border-bottom: var(--size-hairline) solid var(--border-faint);
+}
+.kd-reason:last-child { border-bottom: 0; }
+.kd-reason__text {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  letter-spacing: var(--tracking-md);
+  color: var(--text-primary);
+  text-wrap: pretty;
+}
+.kd-reason__since { font-size: var(--text-label); line-height: var(--leading-label); color: var(--text-tertiary); white-space: nowrap; }
+.kd-reason__track {
+  position: relative;
+  align-self: center;
+  display: block;
+  height: var(--size-meter-track);
+  border-radius: var(--radius-1);
+  background: var(--bg-press);
+  overflow: hidden;
+}
+.kd-reason__fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  transform: scaleX(var(--kd-frac));
+  background: var(--text-secondary);
+  transition: transform var(--motion-base) var(--ease-enter);
+}
+.kd-reason__pts {
+  text-align: right;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+.kd-reason__max { color: var(--text-tertiary); font-weight: var(--weight-regular); }
+
+/* Signals: real dates from the weekly history. */
+.kd-signals { margin: var(--space-2) 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--space-1); }
+.kd-signal { display: grid; grid-template-columns: calc(var(--size-meter) + var(--space-1)) minmax(0, 1fr); column-gap: var(--space-1-5); align-items: baseline; }
+.kd-signal__date { font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-tertiary); white-space: nowrap; }
+.kd-signal__text { font-size: var(--text-sm); line-height: var(--leading-sm); letter-spacing: var(--tracking-sm); color: var(--text-secondary); text-wrap: pretty; }
+
+/* Charts: geometry is SVG; type and color are tokens. */
+.kd-chart { position: relative; }
+.kd-svg { display: block; overflow: visible; font-family: var(--font-sans); }
+.kd-svg-label { font-size: var(--text-label); fill: var(--text-tertiary); }
+.kd-svg-num { font-variant-numeric: var(--numeric); }
+/* Shading labels knock out any guide line behind them (the stroke is the shade's own color). */
+.kd-svg-halo { paint-order: stroke; stroke-width: calc(var(--size-focus-ring) * 2); stroke-linejoin: round; }
+.kd-svg-title { font-size: var(--text-label); font-weight: var(--weight-medium); fill: var(--text-secondary); }
+.kd-svg-seg { font-size: var(--text-label); font-weight: var(--weight-medium); }
+
+/* The window bands morph between modes (x and width), over --motion-base. */
+.kd-band__rect {
+  transition: x var(--motion-base) var(--ease-enter), width var(--motion-base) var(--ease-enter),
+    fill var(--motion-base) var(--ease-enter);
+}
+@media (prefers-reduced-motion: reduce) { .kd-band__rect { transition: fill var(--motion-base) var(--ease-enter); } }
+
+/* Charts reveal once, left to right (the drawer's own wipe direction). Reduced motion: fade. */
+.kd-reveal { animation: kd-wipe var(--motion-reveal) var(--ease-enter) both; }
+@keyframes kd-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@media (prefers-reduced-motion: reduce) { .kd-reveal { animation-name: k-fade-in; } }
+
+/* Legend: a swatch beside a text-token label. */
+.kd-legend { display: flex; flex-wrap: wrap; gap: var(--space-0-5) var(--space-2); }
+.kd-key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+.kd-key__swatch { display: inline-block; flex: none; width: var(--size-icon-sm); height: var(--space-1); border-radius: var(--radius-1); }
+.kd-key__swatch.is-faded { opacity: 0.4; }
+.kd-key__line { display: inline-block; flex: none; width: var(--size-icon); height: var(--size-focus-ring); border-radius: var(--radius-1); }
+.kd-key__dot {
+  display: inline-block;
+  flex: none;
+  width: var(--space-1);
+  height: var(--space-1);
+  border-radius: 50%;
+}
+.kd-legend__value { color: var(--text-primary); }
+
+/* Hover card for charts: raised surface, popover elevation, label type. */
+.kd-tip {
+  position: absolute;
+  top: 0;
+  z-index: var(--z-sticky);
+  width: max-content;
+  max-width: var(--size-tooltip);
+  padding: var(--space-1) var(--space-1-5);
+  border-radius: var(--radius-3);
+  background: var(--bg-raised);
+  box-shadow: var(--elevation-popover);
+  pointer-events: none;
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--text-secondary);
+  animation: k-fade-in var(--motion-fast) var(--ease-enter) both;
+}
+.kd-tip__title { color: var(--text-primary); font-weight: var(--weight-medium); margin-bottom: var(--space-0-5); }
+.kd-tip__row { display: flex; justify-content: space-between; gap: var(--space-2); }
+.kd-tip__label { display: inline-flex; align-items: center; gap: var(--space-0-5); color: var(--text-tertiary); }
+.kd-tip__value { color: var(--text-primary); }
+.kd-tip__note { color: var(--text-tertiary); margin-top: var(--space-0-5); }
+
+/* Usage */
+.kd-usage { display: flex; flex-direction: column; gap: var(--space-1-5); }
+.kd-toggle { display: inline-flex; }
+.kd-sentence {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  letter-spacing: var(--tracking-md);
+  color: var(--text-secondary);
+  text-wrap: pretty;
+}
+.kd-sentence__em { font-weight: var(--weight-medium); color: var(--text-primary); }
+.kd-sentence__num { color: var(--text-primary); }
+
+/* Day-by-day disclosure */
+.kd-disclosure { border-top: var(--size-hairline) solid var(--border-faint); }
+.kd-disclosure__btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  height: var(--size-row);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-2);
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-primary);
+  text-align: left;
+}
+.kd-disclosure__btn:hover .kd-disclosure__label { text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: var(--size-focus-ring); }
+.kd-disclosure__chev { color: var(--text-tertiary); transition: transform var(--motion-base) var(--ease-enter); }
+.kd-disclosure__chev.is-open { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .kd-disclosure__chev { transition: none; } }
+.kd-disclosure__label { font-weight: var(--weight-medium); }
+.kd-disclosure__hint { color: var(--text-tertiary); }
+.kd-disclosure__body { overflow: hidden; }
+.kd-disclosure__inner { padding: var(--space-1) 0 var(--space-0-5); }
+
+/* Day-by-day close-up and its window table */
+.kd-lens { display: flex; flex-direction: column; gap: var(--space-2); }
+.kd-wtable { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.kd-wtable th {
+  padding: 0 var(--space-1) var(--space-1) 0;
+  text-align: left;
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  font-weight: var(--weight-strong);
+  color: var(--text-tertiary);
+  border-bottom: var(--size-hairline) solid var(--border-hairline);
+}
+.kd-wtable td {
+  padding: var(--space-1) var(--space-1) var(--space-1) 0;
+  vertical-align: top;
+  border-bottom: var(--size-hairline) solid var(--border-faint);
+}
+.kd-wtable .is-num { text-align: right; padding-right: 0; }
+.kd-wtable__name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+.kd-wtable__primary { font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-primary); }
+.kd-wtable__secondary { font-size: var(--text-label); line-height: var(--leading-label); color: var(--text-tertiary); }
+.kd-wtable__change { font-size: var(--text-sm); line-height: var(--leading-sm); font-weight: var(--weight-medium); color: var(--text-primary); }
+
+/* Score history */
+.kd-score { display: flex; flex-direction: column; gap: var(--space-1-5); }

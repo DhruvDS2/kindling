@@ -1,0 +1,52 @@
+/* At risk (lane C). Tokens only: npm run lint:tokens. */
+
+.rk { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+
+.rk-summary { margin: 0; display: flex; flex-direction: column; gap: var(--space-0-5); }
+.rk-summary__lead {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  letter-spacing: var(--tracking-lg);
+  color: var(--text-secondary);
+  text-wrap: pretty;
+}
+.rk-summary__lead strong { font-weight: var(--weight-medium); color: var(--text-primary); }
+.rk-summary__rule { margin: 0; font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-tertiary); }
+
+.rk-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1-5); }
+.rk-toolbar__keys {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-0-5);
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+/* A link to a school that isn't on this list: one quiet line, no box. */
+.rk-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+}
+
+/* Cells */
+.rk-stack { display: flex; flex-direction: column; min-width: 0; }
+.k-table td.is-num .rk-stack { align-items: flex-end; }
+.rk-name { font-weight: var(--weight-medium); color: var(--text-primary); }
+.rk-sub { font-size: var(--text-sm); line-height: var(--leading-sm); letter-spacing: var(--tracking-sm); color: var(--text-tertiary); }
+.rk-strong { color: var(--text-primary); }
+.rk-health { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-0-5); min-width: 0; }
+
+.rk-why { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; min-width: 0; }
+.rk-why li { display: grid; grid-template-columns: calc(var(--space-5) + var(--space-0-5)) minmax(0, 1fr); align-items: baseline; gap: var(--space-1); min-width: 0; }
+.rk-why li + li { color: var(--text-secondary); }
+.rk-pts { font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-tertiary); text-align: right; white-space: nowrap; }
+.rk-why__text { font-size: var(--text-sm); line-height: var(--leading-md); }

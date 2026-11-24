@@ -55,6 +55,7 @@ export interface Bin {
   start: number;      // first day (inclusive)
   end: number;        // last day (inclusive)
   teachers: number;   // teacher-days
+  peak: number;       // active teachers on the busiest day of the bin
   sessions: number;
   schoolDays: number;
 }
@@ -66,11 +67,12 @@ export function weeklyBins(days: UsageDay[], from: number, asOf: number): Bin[] 
   const byDay = new Map(days.map(d => [dayNum(d.day), d]));
   const bins: Bin[] = [];
   for (let end = asOf; end >= from; end -= 7) {
-    const b: Bin = { start: Math.max(end - 6, from), end, teachers: 0, sessions: 0, schoolDays: 0 };
+    const b: Bin = { start: Math.max(end - 6, from), end, teachers: 0, peak: 0, sessions: 0, schoolDays: 0 };
     for (let n = b.start; n <= end; n++) {
       const u = byDay.get(n);
       if (!u) continue;
       b.teachers += u.active_teachers;
+      b.peak = Math.max(b.peak, u.active_teachers);
       b.sessions += u.student_sessions;
       if (u.kind === 'instructional') b.schoolDays++;
     }
@@ -97,6 +99,7 @@ export interface WindowStats {
   end: string;
   days: number;        // calendar days covered
   schoolDays: number;
+  breakDays: number;   // break or summer days inside the window
   teachers: number;    // teacher-days
   sessions: number;
 }
@@ -104,7 +107,7 @@ export interface WindowStats {
 /** Sums usage over [start, end]. Before the first school day the API can return start > end: an empty window. */
 export function windowStats(days: UsageDay[], start: string | null, end: string): WindowStats | null {
   if (!start) return null;
-  const s: WindowStats = { start, end, days: 0, schoolDays: 0, teachers: 0, sessions: 0 };
+  const s: WindowStats = { start, end, days: 0, schoolDays: 0, breakDays: 0, teachers: 0, sessions: 0 };
   if (start > end) return s;
   s.days = dayNum(end) - dayNum(start) + 1;
   for (const d of days) {
@@ -112,6 +115,7 @@ export function windowStats(days: UsageDay[], start: string | null, end: string)
     s.teachers += d.active_teachers;
     s.sessions += d.student_sessions;
     if (d.kind === 'instructional') s.schoolDays++;
+    if (d.kind === 'break' || d.kind === 'summer') s.breakDays++;
   }
   return s;
 }

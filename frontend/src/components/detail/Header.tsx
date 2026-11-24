@@ -1,152 +1,145 @@
-// Drawer header: who the school is, where its score stands, and its commercial facts.
+// The drawer's decision line (score, status, the line that matters, renewal or signup facts)
+// and its 4A properties. Everything is read from the list row the drawer was opened from
+// until /schools/{id} arrives, then from the detail. Thresholds come from /meta.
 import type { ReactNode } from 'react';
 import type { HealthScore, Lifecycle, Meta, PqlScore, SchoolDetail } from '../../types';
+import { NumberFlow, PropertyList, ScoreMeter, StatusPill, statusTone, type Property } from '../../design';
 import { dayNum, long, plural } from './model';
-import { MONO } from './scale';
-import { Note } from './ui';
 
-type ListRow = PqlScore | HealthScore;
-const isHealth = (s: ListRow): s is HealthScore => 'health_score' in s;
+export type ListRow = PqlScore | HealthScore;
+export const isHealth = (s: ListRow): s is HealthScore => 'health_score' in s;
+export const scoreOf = (s: ListRow) => (isHealth(s) ? s.health_score : s.pql_score);
 
-const LIFECYCLE: Record<Lifecycle, string> = {
-  free: 'Free plan',
-  converted: 'Converted to paid',
+/** The word on the pill when there is no live score. */
+const LIFECYCLE_WORD: Record<Lifecycle, string> = {
+  free: 'Not scored',
+  converted: 'Converted',
   no_signup: 'No signup yet',
-  paid: 'Paying',
-  not_started: 'Paying · not scored yet',
+  paid: 'Not scored',
+  not_started: 'Not scored yet',
   renewed: 'Renewed',
   churned: 'Churned',
   expanded: 'Expanded',
 };
 
-const CHIP: Record<string, { bg: string; fg: string }> = {
-  Ready: { bg: 'var(--ember-chip-bg)', fg: 'var(--ember-chip-text)' },
-  'Not yet': { bg: 'var(--nav)', fg: 'var(--muted)' },
-  'At risk': { bg: 'var(--risk-chip-bg)', fg: 'var(--risk)' },
-  Healthy: { bg: 'color-mix(in srgb, var(--steady) 12%, var(--card))', fg: 'var(--steady)' },
-};
-
-export function StatusChip({ score, status, kind }: { score: number | null; status: string; kind: 'pql' | 'health' }) {
-  const c = CHIP[status] ?? CHIP['Not yet'];
-  return (
-    <span data-testid="detail-score" style={{
-      display: 'inline-flex', alignItems: 'center', padding: '5px 10px', borderRadius: 6, background: c.bg, color: c.fg,
-      fontSize: 13, fontFamily: MONO, fontWeight: 500, whiteSpace: 'nowrap',
-    }}>
-      {kind === 'pql' ? 'PQL' : 'Health'} {score !== null ? `${score} · ` : ''}{status}
-    </span>
-  );
-}
-
-function Fact({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 13, color: 'var(--ink)', fontFamily: MONO, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{children}</div>
-    </div>
-  );
-}
-
-function unscoredNote(d: SchoolDetail, meta: Meta): string | null {
+/** One sentence for a school that has no live score at this date. */
+export function lifecycleNote(d: SchoolDetail, meta: Meta): string | null {
   switch (d.lifecycle) {
-    case 'converted': return `Converted to paid${d.converted_on ? ` on ${long(d.converted_on)}` : ''}. PQL scoring stops at conversion; the history below runs up to it.`;
+    case 'converted': return `Converted to paid${d.converted_on ? ` on ${long(d.converted_on)}` : ''}. Readiness scoring stops at conversion; the history below runs up to it.`;
     case 'no_signup': return 'No teacher has signed up yet, so there is nothing to score.';
-    case 'not_started': return `Health scoring starts once the school year has ${plural(meta.thresholds.health_min_school_days, 'school day')}. This school has had ${plural(d.school_days_elapsed, 'school day')} so far.`;
+    case 'not_started': return `Health scoring starts after ${plural(meta.thresholds.health_min_school_days, 'school day')} of the school year. This school has had ${plural(d.school_days_elapsed, 'school day')} so far.`;
     case 'renewed': case 'churned': case 'expanded':
-      return `${LIFECYCLE[d.lifecycle]} at renewal${d.renewal_date ? ` (${long(d.renewal_date)})` : ''}. Health stops scoring at the renewal date; the history below runs up to it.`;
+      return `${LIFECYCLE_WORD[d.lifecycle]} at renewal${d.renewal_date ? ` on ${long(d.renewal_date)}` : ''}. Health stops scoring at the renewal date; the history below runs up to it.`;
     default: return d.score ? null : 'Not scored at this date.';
   }
 }
 
 interface Props {
-  type: 'pql' | 'health';
-  row: ListRow;                       // the list row the drawer was opened from: shown until the detail loads
+  kind: 'pql' | 'health';
+  row: ListRow;                       // the list row the drawer was opened from
   detail: SchoolDetail | undefined;
   meta: Meta;
   asOf: string;
-  onClose: () => void;
 }
 
-export default function Header({ type, row, detail, meta, asOf, onClose }: Props) {
-  const p = detail ?? row;
-  const kind = detail?.score_kind ?? type;
-  const live = detail ? detail.score : row;
-  const score = live ? (isHealth(live) ? live.health_score : live.pql_score) : null;
-  const health = live && isHealth(live) ? live : null;
-  const pqlRow = live && !isHealth(live) ? live : null;
-  const note = detail ? unscoredNote(detail, meta) : null;
+function liveScore(row: ListRow, detail: SchoolDetail | undefined): ListRow | null {
+  return detail ? detail.score : row;
+}
 
-  const renewal = detail?.renewal_date ?? health?.renewal_date ?? null;
-  const daysToRenewal = health ? health.days_to_renewal : renewal ? dayNum(renewal) - dayNum(asOf) : null;
-  const arr = detail?.arr ?? health?.arr ?? null;
+function renewal(row: ListRow, detail: SchoolDetail | undefined, asOf: string) {
+  const live = liveScore(row, detail);
+  const date = detail?.renewal_date ?? (isHealth(row) ? row.renewal_date : null);
+  const days = live && isHealth(live) ? live.days_to_renewal : date ? dayNum(date) - dayNum(asOf) : null;
+  return { date, days };
+}
+
+/** Under the name: meter + status word + the line that matters, then one line of context. */
+export function HeaderMeta({ kind, row, detail, meta, asOf }: Props) {
+  const live = liveScore(row, detail);
+  const t = meta.thresholds;
+  const admin = live && !isHealth(live) && live.ready_rule === 'admin';
+  const threshold = kind === 'pql' ? (admin ? t.pql_admin_ready : t.pql_ready) : t.health_at_risk_below;
+  const rule = kind === 'pql'
+    ? admin ? `Ready by the admin rule: ${t.pql_admin_ready}+ with an admin signed up` : `Ready at ${t.pql_ready}+`
+    : `At risk below ${t.health_at_risk_below}`;
+
+  let context: ReactNode = null;
+  const note = detail ? lifecycleNote(detail, meta) : null;
+  if (note) {
+    context = note;
+  } else if (kind === 'health') {
+    const { date, days } = renewal(row, detail, asOf);
+    if (date && days !== null) {
+      context = days >= 0
+        ? <>Renews in <NumberFlow value={days} reveal={false} className="kd-meta__num" /> {days === 1 ? 'day' : 'days'} · {long(date)}</>
+        : <>Renewal was {plural(-days, 'day')} ago · {long(date)}</>;
+    }
+  } else {
+    const pqlRow = live && !isHealth(live) ? live : !isHealth(row) ? row : null;
+    const parts: string[] = [];
+    if (pqlRow) parts.push(pqlRow.admin_signed_up_on ? `Admin signed up ${long(pqlRow.admin_signed_up_on)}` : 'No admin signed up yet');
+    if (detail?.first_signup) parts.push(`First teacher signed up ${long(detail.first_signup)}`);
+    context = parts.join(' · ') || null;
+  }
 
   return (
-    <header style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>
-            {p.type === 'district' ? `District school${p.district ? ` · ${p.district}` : ''}` : 'Independent school'}
-            {' · '}{p.city}, {p.state}{detail ? ` · ${detail.region}` : ''}
-          </div>
-          <h2 id="detail-title" style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.2 }}>{p.name}</h2>
-        </div>
-        <button onClick={onClose} aria-label="Close" style={{
-          background: 'none', border: '1px solid var(--line)', borderRadius: 6, cursor: 'pointer',
-          width: 32, height: 32, fontSize: 18, lineHeight: 1, color: 'var(--muted)', flexShrink: 0,
-        }}>×</button>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        {live && <StatusChip score={score} status={live.status} kind={kind} />}
-        {detail && (
-          <span data-testid="detail-lifecycle" style={{ fontSize: 12, color: 'var(--body)', padding: '4px 8px', border: '1px solid var(--line)', borderRadius: 6 }}>
-            {LIFECYCLE[detail.lifecycle]}
-          </span>
-        )}
-        <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-          {kind === 'pql'
-            ? pqlRow?.ready_rule === 'admin'
-              ? `Ready by the admin rule (score ${meta.thresholds.pql_admin_ready}+ with an admin signed up)`
-              : `Ready at ${meta.thresholds.pql_ready}+`
-            : `At risk below ${meta.thresholds.health_at_risk_below}`}
-        </span>
-      </div>
-
-      {note && <Note style={{ color: 'var(--body)', fontSize: 13 }}>{note}</Note>}
-
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '10px 16px',
-        padding: '12px 0', borderTop: '1px solid var(--row-divider)', borderBottom: '1px solid var(--row-divider)',
-      }}>
-        {kind === 'health' ? (
-          <>
-            <Fact label="Renews">{renewal ? long(renewal) : '—'}</Fact>
-            <Fact label={daysToRenewal !== null && daysToRenewal < 0 ? 'Renewal was' : 'Days to renewal'}>
-              {daysToRenewal === null ? '—' : daysToRenewal < 0 ? `${plural(-daysToRenewal, 'day')} ago` : plural(daysToRenewal, 'day')}
-            </Fact>
-            <Fact label="ARR">{arr !== null ? `$${arr.toLocaleString('en-US')}` : '—'}</Fact>
-            <Fact label="Seats">{p.seats.toLocaleString('en-US')}</Fact>
-          </>
-        ) : (
-          <>
-            <Fact label="Admin signed up">{pqlRow ? (pqlRow.admin_signed_up_on ? long(pqlRow.admin_signed_up_on) : 'Not yet') : '—'}</Fact>
-            <Fact label="First teacher signup">{detail?.first_signup ? long(detail.first_signup) : detail ? 'None yet' : '—'}</Fact>
-            <Fact label={detail?.converted_on ? 'Converted' : 'Active teachers'}>
-              {detail?.converted_on ? long(detail.converted_on) : pqlRow ? `${pqlRow.active_teachers} (prior ${pqlRow.active_teachers_prev})` : '—'}
-            </Fact>
-            <Fact label="Students">{detail ? detail.students.toLocaleString('en-US') : '—'}</Fact>
-          </>
-        )}
-        <Fact label="Calendar">{p.calendar_id}</Fact>
-        <Fact label="School days so far">{detail ? detail.school_days_elapsed : '—'}</Fact>
-        <div style={{ gridColumn: 'span 2', minWidth: 0 }}>
-          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 2 }}>Contact</div>
-          <div style={{ fontSize: 13, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-            title={`${p.contact_name}, ${p.contact_title} · ${p.contact_email}`}>
-            {p.contact_name} <span style={{ color: 'var(--muted)' }}>· {p.contact_title}</span>
-          </div>
-        </div>
-      </div>
-    </header>
+    <>
+      {live ? (
+        <>
+          <ScoreMeter value={scoreOf(live)} threshold={threshold} tone={statusTone(live.status)} thresholdLabel={rule} />
+          <StatusPill tone={statusTone(live.status)}>{live.status}</StatusPill>
+          <span className="kd-meta__rule">{rule}</span>
+        </>
+      ) : detail ? (
+        <StatusPill tone="neutral">{LIFECYCLE_WORD[detail.lifecycle]}</StatusPill>
+      ) : null}
+      {context && <span className="kd-meta__line" data-testid="detail-context">{context}</span>}
+    </>
   );
+}
+
+function place(p: ListRow | SchoolDetail, detail?: SchoolDetail) {
+  const kind = p.type === 'district' ? 'District' : 'Independent';
+  return [kind, p.district, `${p.city}, ${p.state}`, detail?.region].filter(Boolean).join(' · ');
+}
+
+/** 4A: the facts as label/value rows. */
+export function Facts({ kind, row, detail, asOf }: Props) {
+  const p = detail ?? row;
+  const live = liveScore(row, detail);
+  const usd = (n: number) => `$${n.toLocaleString('en-US')}`;
+  const calendar = detail
+    ? `${detail.calendar_id} · ${plural(detail.school_days_elapsed, 'school day')} so far`
+    : row.calendar_id;
+  const contact = `${p.contact_name} · ${p.contact_title}`;
+
+  const items: Property[] = [];
+  if (kind === 'health') {
+    const { date, days } = renewal(row, detail, asOf);
+    const outcome = detail?.renewal_outcome;
+    items.push({
+      label: 'Renews',
+      value: !date ? null
+        : outcome ? `${LIFECYCLE_WORD[outcome]} on ${long(date)}`
+        : days !== null && days >= 0 ? `${long(date)} · in ${plural(days, 'day')}` : long(date),
+    });
+    const arr = detail?.arr ?? (isHealth(row) ? row.arr : null);
+    items.push({ label: 'ARR · seats', value: arr !== null ? `${usd(arr)} · ${plural(p.seats, 'seat')}` : null });
+  } else {
+    items.push({
+      label: 'Plan',
+      value: detail?.converted_on ? `Converted to paid on ${long(detail.converted_on)}` : 'Free',
+    });
+    const pqlRow = live && !isHealth(live) ? live : null;
+    items.push({
+      label: 'Active teachers',
+      value: pqlRow ? `${pqlRow.active_teachers} · ${pqlRow.active_teachers_prev} in the prior window` : null,
+    });
+    items.push({ label: 'Students', value: detail ? detail.students.toLocaleString('en-US') : null });
+  }
+  items.push({ label: 'Type · location', value: place(p, detail) });
+  items.push({ label: 'Calendar · school days', value: calendar });
+  items.push({ label: 'Contact', value: contact });
+  items.push({ label: 'Email', value: p.contact_email });
+  return <PropertyList items={items} className="kd-facts" />;
 }
