@@ -272,12 +272,19 @@
   - **Housekeeping:** `origin/ui-upgrade-p3-perf` still points at an old WIP commit. The lane squashed it locally, and a normal push was rejected; it isn't force-pushed. All its final commits are in `ui-upgrade`.
 
 ## What's left
-- Dhruv: review `ui-upgrade` (the finished UI) and decide the merge: `ui-upgrade` → `ui` → `main`. Merging also brings `main`'s README and LEARN.md up to date (they still say 83% / 100%).
-- **2-minute demo video (TASKS 4.5): next.** The UI is done.
+**Next session (Dhruv's plan, 2026-11-24):**
+1. **UI polish pass:** fix minor UI errors and smoothness on `ui-upgrade`. Starting points:
+   - Dhruv's own notes from using it.
+   - The gate follow-ups (`docs/gates/UI-UPGRADE-GATE.md`): the base component APIs lanes worked around (WeekPager testid, LazyMotion `m.*`, the view-transition fix in `PageTransition.css`, a small SegmentedControl, a Nav hover callback, a Drawer exit callback, arrow-key propagation, a focus fallback) and the unused Tailwind directives.
+   - The one transition that didn't get cheaper: the Backtest switch (~32ms prod CPU, the recharts chart mount).
+   - Re-run `npm run design:capture` on a production build afterwards.
+2. **2-minute demo video** (TASKS 4.5).
+
+**Then:**
+- Merge decision: `ui-upgrade` → `ui` → `main`. This also refreshes `main`'s README and LEARN.md (they still say 83% / 100%).
 - Re-import `n8n/kindling_weekly.json` into n8n (it no longer sends today's date).
 - Tidy the stale `origin/ui-upgrade-p3-perf` branch (force-push or delete, Dhruv's call).
-- Non-blocking follow-ups from the gate: small base component APIs, and the unused Tailwind directives in `index.css`.
-- On real data: tune thresholds with `backtest.py sweep --db`, source real district calendars, and rerun the admin rule
+- On real data: tune thresholds with `backtest.py sweep --db`, source real district calendars, and rerun the admin rule.
 
 ## How real data would work
 Replace `simulate.py` with a live query against Flint's production DB (or read replica). `features.py`, scoring rules, API, frontend, and n8n all stay the same. Main calibration work: tune thresholds on real conversion outcomes (a few weeks of data), add per-district calendars, handle messier real-world usage patterns. The architecture is correct — it just needs real data to dial in the numbers.

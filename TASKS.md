@@ -36,7 +36,7 @@ One task at a time. Each one ends with something you can run. Update PROGRESS.md
 - [x] 4.2 Static HTML report with the backtest table and chart
 - [x] 4.3 Logistic regression vs. rules on the same backtest (honest comparison)
 - [x] 4.4 README: problem, diagram, results table, how to run, limits
-- [ ] 4.5 2-minute demo video (next: the UI is done)
+- [ ] 4.5 2-minute demo video (after the UI polish pass)
 
 ## Phase 5: Production realism (separate runs; headline numbers don't move)
 - [x] 5.0 Re-baseline every published number against the current code
@@ -52,5 +52,6 @@ One task at a time. Each one ends with something you can run. Update PROGRESS.md
 - [x] Freeze the data contract in §4 (Phase 0 of the UI run)
 - [x] Build the four views against it, plus the §3 items alongside (gate: `docs/gates/UI-GATE.md`, PASSED)
 - [x] UI upgrade (`ui-upgrade`): audit, picks, tokens and base, 5 lanes, gate PASSED (`docs/gates/UI-UPGRADE-GATE.md`). **The UI is done.**
+- [ ] **Next:** UI polish pass on `ui-upgrade`: minor errors and smoothness (see PROGRESS.md "What's left")
 - [ ] Dhruv: review `ui-upgrade`, decide the merge (`ui-upgrade` → `ui` → `main`)
 - [ ] Re-import `n8n/kindling_weekly.json` into n8n (it no longer sends today's date)
