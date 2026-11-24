@@ -206,6 +206,10 @@ Everything else — the scoring engine, API, frontend, and automations — stays
 - **Calendars are regional in the simulation.** The district world gives every school in a region the same calendar. Real districts set their own, so production keys calendars by district and needs a source for them (district websites, or ask the admin at onboarding).
 - **The default world still uses one national calendar.** That keeps the headline numbers stable; the district world is a separate run.
 - **School days don't help the PQL score.** Calendar windows score about the same. School days earn their keep on health.
+- **The health threshold has a thin margin.** "At risk" means a health score below 70.
+  - **History:** it started at 50 and was raised to 70 on Nov 17, 2026, for a UI reason: at 50, no school ever showed as at risk on the dashboard. It was not tuned on results. The backtest wasn't rerun until Nov 23, when recall turned out to have risen from 41% to 77% with false alarms still at 0%.
+  - **Check:** the threshold sweep picks a threshold on fall data and checks it on spring. It independently picks 70, and 70 holds on spring (`results/threshold_sweep.md`).
+  - **Margin:** the lowest score any healthy school reaches before its renewal is 72, just two points above the line. At 75, spring false alarms jump to 14%. Small weight changes could break the 0% false-alarm result, so re-check it on real data before trusting it.
 - **Admin signups are clean in the simulator.** Only converter-shaped schools get admins by default, which flatters any admin rule. The admin rule stays off until real data says otherwise.
 - **localtunnel URLs change on restart.** When you reboot, update the 4 HTTP Request nodes across the two API-calling workflows in n8n.
 - **Stalled schools are unbeatable.** Schools that look like buyers but never buy (budget freeze) are indistinguishable from real buyers. This is the honest precision ceiling — not a bug.

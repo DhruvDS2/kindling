@@ -1,0 +1,5 @@
+# Project-level Streamlit settings (read when you run `streamlit run dashboard/app.py` from the repo root).
+
+[browser]
+# Don't send anonymous usage stats to Streamlit's collector. Kindling runs local-only.
+gatherUsageStats = false

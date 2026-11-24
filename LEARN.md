@@ -2,7 +2,7 @@
 
 A tutor guide for explaining Kindling end to end. Read it once, then do "Check yourself" in writing before you open the answers.
 
-Status as of 2026-11-11. The code is moving fast, so re-check TASKS.md and `results/` before Friday.
+Status as of 2026-11-23. Every number here comes from a fresh run that day (`make backtest`, `make experiments`). If the code changes, rerun them and check `results/` before quoting anything.
 
 ---
 
@@ -39,67 +39,111 @@ Kindling's answer: only count days when school is actually in session.
 
 - **What it does:** For any "as of" date, turns raw events into a few numbers per school: active teachers, student sessions, tutors created, "aha" teachers (a teacher whose students had 20+ sessions in the window), whether an admin signed up, and the same counts for the previous window.
 - **Why it exists:** Scores need simple, comparable numbers, not millions of rows.
-- **GTM concept:** Usage signals, point-in-time features. It has two modes: last 10 school days (the real approach) and last 14 calendar days (the naive baseline).
-- **Status:** BUILT (code exists and tests pass; TASKS.md box not checked yet).
+- **GTM concept:** Usage signals, point-in-time features. It has three modes:
+  - the last 10 school days on the school's own calendar (the real approach);
+  - the last 10 school days on one national calendar (the old approach, kept as a baseline);
+  - the last 14 calendar days (the naive baseline).
+- **Status:** BUILT.
 
 ### 3. PQL score (`pql.py`)
 
 - **What it does:** Scores each free, not-yet-converted school from 0 to 100. Points for breadth (active teachers, max 30), depth (aha teachers, max 35), an admin signing up (15), and spreading (more active teachers than last window, 10). Minus 10 if lots of tutors were built but students barely used them. 60 or higher means "Ready." It returns the top 3 reasons with the number.
 - **Why it exists:** Sales wants a ranked call list with reasons they can say out loud.
 - **GTM concept:** PQL (product-qualified lead), scored at the account level, not the user level. The weights were set by reasoning, not tuned on results (stated in the code).
-- **Status:** BUILT (not yet checked off in TASKS.md).
+- **Status:** BUILT. An opt-in "admin rule" (Ready at 40 if an admin has signed up) was tested as a separate run and stays off (see Experiments).
 
 ### 4. Health score (`health.py`)
 
-- **What it does:** Will score each paying school 0 to 100 from trends in active teachers and sessions over school-day windows, plus days until renewal, with top 3 reasons.
+- **What it does:** Scores each paying school from 0 to 100 and returns the top 3 reasons. Below 70 means "At risk." The points:
+  - active-teacher trend vs the previous window: 40;
+  - student-session trend: 35;
+  - renewal urgency: 15, draining away inside the 45 days before renewal;
+  - share of licensed seats in use: 10.
+
+  A school isn't scored until its year has produced one full window of 10 school days, because before that there's no trend to measure.
 - **Why it exists:** Customer success needs to know who to help before renewal.
 - **GTM concept:** Customer health score, churn prediction, retention. Feeds NRR.
-- **Status:** PLANNED. The file doesn't exist yet.
+- **Status:** BUILT.
 
 ### 5. Backtest (`backtest.py`)
 
 - **What it does:** Pretends it is every Monday from Sep 1, 2025 to Jul 31, 2026. On each Monday it scores using only data up to that day. It records the first Monday each school hits "Ready." Then, and only then, it checks the hidden truth: did that school convert after the flag?
 - **Why it exists:** It's the proof. Without it, a score is just an opinion.
 - **GTM concept:** Backtesting, precision, recall, lead time, beating a baseline.
-- **Status:** PQL backtest BUILT, results in `results/pql_backtest.md`. Health backtest PLANNED.
+- **Status:** BUILT for both scores. Results are in `results/pql_backtest.md` and `results/health_backtest.md`.
 
-The PQL results (I re-ran them and they match the file):
+The PQL results:
 
 | | Naive: 5+ tutors built | Kindling PQL |
 |---|---|---|
-| Schools flagged | 93 | 30 |
-| Flagged that converted | 34 | 22 |
-| Precision | 37% | 73% |
-| Recall | 100% (34/34) | 65% (22/34) |
-| Median lead time | 53 days | 30 days |
-| Top 20 on Feb 2, 2026 that later converted | 4/20 | 6/20 |
+| Schools flagged | 93 | 31 |
+| Flagged that converted | 34 | 24 |
+| Precision | 37% | 77% |
+| Recall | 100% (34/34) | 71% (24/34) |
+| Median lead time | 56 days | 28 days |
+| Top 20 on Feb 2, 2026 that later converted | 4/20 | 8/20 |
 
 How to read it:
 
-- The naive rule catches everyone because it flags almost everyone. 59 of its 93 flags are wrong. Reps would waste most calls.
-- Kindling is right about 3 times in 4. It beats the 60% precision target.
-- Kindling misses the 70% recall target (65%). Be upfront about that.
-- Lead time of 30 days beats the 14-day target.
+- The naive rule catches everyone because it flags almost everyone. 59 of its 93 flags are wrong, so reps would waste most of their calls.
+- Kindling is right about 3 times in 4, beating the 60% precision target.
+- Kindling just meets the 70% recall target (71%). Counting only the 28 real converters, and leaving out the 6 decoys that bought by chance, it catches 24 (86%).
+- A 28-day lead time beats the 14-day target.
 
 What I found digging in (my own queries, not in the results file):
 
-- The 8 wrong Kindling flags are all "stalled" schools. Those are built to look exactly like buyers but never buy. Zero flags went to solo stars, builders, or dormant schools.
-- The 12 misses: 6 are the "quiet" converters (only 2 teachers), and 6 are decoy schools that bought anyway (5 solo stars, 1 builder).
-- For the PQL score, school-day windows barely changed the result. A calendar-day version got the same precision and recall, with 27.5 days median lead time instead of 30. The school-days idea is expected to matter much more for the health score, which isn't built yet. Don't claim it already proved itself for PQL.
+- All 7 wrong Kindling flags are "stalled" schools, which are built to look exactly like buyers but never buy. No flags went to solo stars, builders, or dormant schools.
+- The 10 misses: 4 real converters that only ever had 2 or 3 teachers, plus 6 decoys that bought anyway (4 solo stars, 2 builders).
+- For the PQL score, school-day windows don't help. A calendar-day version does slightly better: 78% precision, 74% recall, 29 days lead. Don't claim school days help the buying score. They prove themselves on churn.
 
-### 6. Alerts and n8n (`api.py`, `n8n/kindling_weekly.json`)
+The health results:
 
-- **What it does:** A small API returns PQL and health scores for a date. An n8n workflow runs weekly: call the API, split by team, and post to two Slack channels (sales and customer success). Optional Clay node to enrich flagged accounts.
+| | Naive: calendar windows | Kindling: school-day windows |
+|---|---|---|
+| Churners flagged 45+ days before renewal | 21/22 (95%) | 17/22 (77%) |
+| Median lead time on those churners | 114 days | 80 days |
+| Healthy schools ever flagged at risk (false alarms) | 58/58 (100%) | **0/58 (0%)** |
+
+How to read it:
+
+- The naive model catches more churners because it flags every school at some point, mostly around breaks. On Monday Jan 5, the first day back from winter break, it flags 78 schools, 57 of them healthy. Kindling flags 3, none of them healthy. CS would learn to ignore the naive alerts within a month.
+- The honest cost of school days is a few churners caught later or missed (77% vs 95%), and a shorter lead time (80 vs 114 days). Say so.
+- **The threshold has a history.** It started at 50. On Nov 17 it was raised to 70 because at 50 no school showed as at risk in the dashboard. That was a UI reason, not tuning on results. Health recall went from 41% to 77%, with false alarms still at 0.
+  - A later threshold sweep picked 70 on fall data, independently, and it held up on spring.
+- **The margin is thin.** The lowest score any healthy school reaches before its renewal is 72, two points above the line. At 75, spring false alarms jump to 14%.
+
+A logistic regression was trained on fall and tested on spring with the same features, as an honest comparison:
+- PQL: it gets more recall (91% vs 70%) but much lower precision (40% vs 70%).
+- Health: it catches more churners (82% vs 59%) but flags every healthy school (100% false alarms vs 0%). It doesn't know what a break is.
+
+### 6. Experiments (separate runs; they never change the numbers above)
+
+- **District calendars:** see the section below. One national calendar false-alarms on 83% of healthy schools in a world where districts break on different weeks. District calendars: 0%.
+- **Admin rule (PQL run 3):** Ready at 40 if an admin has signed up, aimed at the quiet converters.
+  - Default world: it catches 26 of 28 real converters instead of 24, and precision dips from 77% to 74%.
+  - Stress test where admins also sign up at schools that never buy: precision falls to 63%.
+  - It stays off. Real data has to show that admin signups predict buying.
+- **Threshold sweep:** picks thresholds on fall and checks them on spring, so a pick is never graded on the data it came from.
+  - Health: it picks 70, which holds on spring.
+  - PQL: the fall pick is 35, which fails the same precision rule on spring, so 60 stays.
+  - On real data it runs with `python -m kindling.backtest sweep --db <path>`.
+
+### 7. Alerts and n8n (`api.py`, `n8n/*.json`)
+
+- **What it does:** A FastAPI app returns PQL and health scores for a date. Three n8n workflows:
+  - Weekly, Monday 8am: score, have Claude draft a first email from the computed reasons, post to Slack #sales and #customer-success.
+  - On demand: the UI sends one school to the right channel.
+  - Follow-up, Monday 9am: nudges #sales about schools contacted 14+ days ago with no movement.
 - **Why it exists:** A score nobody sees is worthless. Alerts put it where reps already work.
 - **GTM concept:** Routing, orchestration, enrichment.
-- **Status:** PLANNED.
+- **Status:** BUILT. Clay enrichment was tested by hand and deliberately not wired in: it needs a paid plan and adds nothing to the demo.
 
-### 7. Dashboard (`dashboard/app.py`)
+### 8. Dashboard (`frontend/`, `dashboard/app.py`)
 
-- **What it does:** Streamlit page with four tiles (Ready to buy, At risk, ARR at risk, Projected NRR), two ranked tables, and a backtest tab comparing naive vs season-aware with breaks shaded.
+- **What it does:** A React console with a Monday brief, Ready to buy, At risk, Prospects, Pipeline, Backtest and Automations. The original Streamlit page (four tiles, two ranked tables, a backtest tab with breaks shaded) is kept as a backup.
 - **Why it exists:** Gives the GTM lead a "is this working?" view.
 - **GTM concept:** NRR, ARR at risk, pipeline reporting.
-- **Status:** PLANNED.
+- **Status:** BUILT. A Nov 23 audit found the React screens need fixes before the demo: they scored "today" instead of a date in the simulated year, and the backtest screen showed made-up numbers. That work happens on the `ui` branch.
 
 ---
 
@@ -117,7 +161,7 @@ Every school gets a secret archetype. The scorer never sees it. The backtest use
 | builders | 20 | 3 to 6 teachers who build lots of tutors, but students barely use them. 5% buy anyway. | Teachers exploring at a PD day. Lots of clicks, no classroom adoption. |
 | dormant | 38 | 1 or 2 teachers who try it and fade within days. | Signed up, poked around, left. The bulk of any free funnel. |
 
-In this run, 34 free schools convert: all 28 converters, 5 solo stars, and 1 builder.
+In this run, 34 free schools convert: all 28 converters, 4 solo stars, and 2 builders.
 
 ### Paid schools (80)
 
@@ -136,7 +180,7 @@ A decoy is a school that looks like one thing to a lazy rule but is really anoth
 
 - **solo_star tests "account, not user."** If you score your most active user, the solo star wins. But one teacher is a user, not a school ready to buy. Kindling caps the breadth points and rewards several teachers, so a solo star can't reach 60. In the backtest, its best score was 37.
 - **builders tests "real use, not clicks."** Building tutors feels like engagement. The naive baseline ("any teacher built 5+ tutors") falls for it and flagged all 20. Kindling rewards student sessions and subtracts points when tutors pile up unused. Best builder score: 40.
-- **healthy_break_renewal tests "a break is not a churn."** Right before a Jan 15 or Feb 1 renewal, the recent past is winter break or Thanksgiving. A calendar-day health score sees usage collapse and raises a false alarm on a perfectly happy school. This is the trap the school-days idea is built to avoid. Because the health score isn't built yet, this test hasn't been run.
+- **healthy_break_renewal tests "a break is not a churn."** Right before a Jan 15 or Feb 1 renewal, the recent past is winter break or Thanksgiving. A calendar-day health score sees usage collapse and raises a false alarm on a perfectly happy school. This is the trap the school-days idea is built to avoid. Tested: calendar windows flag all 12 of these schools at some point; school-day windows flag none.
 - **stalled is a different kind of decoy.** It's not there to be beaten. It's the honest floor: some schools look perfect and still don't buy. It keeps precision from looking too good to be true.
 
 ### The school calendar
@@ -150,9 +194,9 @@ From `config.py`:
 
 That gives 190 school days, 72 weekend days, 30 break days, and 73 summer days.
 
-Teachers are much less likely to show up off school days: 8% as likely on weekends, 4% on breaks, 2% in summer. In my run, the average number of active teachers per day was 641 on school days, 52 on weekends, 28 on breaks, and 11 in summer. Weekly active teacher-days fell from about 3,400 in mid-December to about 200 over winter break, then went back to about 3,450 the week of Jan 5.
+Teachers are much less likely to show up off school days: 8% as likely on weekends, 4% on breaks, 2% in summer. In the current run, the average number of active teachers per day is 765 on school days, 62 on weekends, 33 on breaks, and 13 in summer. Weekly active teacher-days fall from about 4,100 in mid-December to about 240 over winter break, then come back to about 4,270 the week of Jan 5.
 
-PROGRESS.md still shows older numbers (677, 1,584 teachers). Those came from before the `stalled` archetype was added. Quote the numbers from a fresh run.
+That's the one national calendar every school follows in the default world. A second simulated world gives each district its own calendar (see "District calendars" below).
 
 ---
 
@@ -185,9 +229,37 @@ On Monday Dec 1, both approaches compare "this window" to "the window before."
 
 It gets worse on Monday Jan 5, the first day back. The last 14 calendar days (Dec 23 to Jan 5) hold just 1 school day, vs 9 in the 14 before. A calendar window sees a drop of nearly 90%. The school-day window (Dec 9 to Jan 5) still holds 10 normal school days.
 
-Real check in the simulated data (my query): for the 46 healthy paid schools, student sessions in the calendar window ending Dec 1 were 8,664 vs 16,578 the window before, a 48% "drop." On the school-day window it was 15,715 vs 16,054, about 2%.
+Real check in the simulated data (my query): for the 46 healthy paid schools, student sessions in the calendar window ending Dec 1 were 10,269, vs 19,345 in the window before: a 47% "drop." On the school-day window it was 19,965 vs 19,109, up 4%.
 
 One detail: on a day that isn't a school day, the school-day window just ends at the last school day. In the data, every calendar day carries a running count of school days so far (`instr_idx`), which makes this easy to compute.
+
+---
+
+## District calendars, and checking the checker
+
+Real districts don't share breaks. New England starts after Labor Day and takes a February and an April vacation. Texas takes spring break in early March. The South starts in early August and finishes in May. One national calendar gets every one of those districts wrong.
+
+How it's built:
+- `config.py` holds the national calendar plus five regional ones.
+- Every school has a `calendar_id`, and the `school_calendars` table holds each calendar's days.
+- Feature windows count school days on each school's own calendar.
+- The default world still puts every school on the national calendar, so the headline numbers above don't move.
+- A second world (`python -m kindling.simulate --calendars district`) puts each school on its district's calendar.
+
+Health results in the district world:
+
+| | Calendar windows | School days, one national calendar | School days, district calendars |
+|---|---|---|---|
+| Healthy schools flagged (false alarms) | 58/58 (100%) | 48/58 (83%) | **0/58 (0%)** |
+| Churners flagged 45+ days before renewal | 22/22 | 18/22 | 17/22 |
+
+The national calendar's false alarms come from every region. When a district's spring break doesn't match the national one, those vacation days count as "school days" with nobody using the product.
+
+**Checking the checker.** The first run of the district world did *not* give 0%. District calendars still flagged 12 healthy schools, a 21% false-alarm rate, and all 12 were Northeast schools flagged on Sep 1.
+- **Why:** Northeast schools start Sep 2, so on Sep 1 their 10-school-day window was empty. An empty window and an empty window before it scores as "no data, neutral," which comes to 52.5, under the 70 line.
+- **The fix was a rule, not a tweak:** don't score health until a school's year has one full window of school days.
+- The default world didn't change at all. Every Monday from Sep 1 already had 11 school days on the national calendar, so the bug had been invisible there.
+- **The lesson:** a new world tests the harness as well as the score. If I had only quoted "district calendars beat the national calendar," the 21% would have looked like a district-calendar weakness when it was really a scorer bug.
 
 ---
 
@@ -199,11 +271,11 @@ A skeptical interviewer's first thought on any backtest is "you cheated, maybe b
 - **No future data.** Every feature takes an explicit "as of" date and reads only events on or before it. Leaking even one day of the future makes results look great and mean nothing. The test deletes every event after the as-of date, recomputes features, and checks nothing changed. It runs on three dates, including Jan 5, right after winter break.
 - **A flag only counts if it comes before the purchase.** Flagging a school the day after it bought isn't a prediction.
 - **No secret tuning.** If weights are ever tuned on results, the year must be split (tune on fall, report on spring) and that has to be written down. The PQL code says its weights were set by reasoning, not tuning.
-- **Report bad numbers.** No rounding up. That's why the 65% recall, below the 70% target, sits right in the results.
+- **Report bad numbers.** No rounding up. That's why the trade-offs sit right in the results: school-day windows catch fewer churners than the naive model (77% vs 95%), and they don't help the buying score at all.
 - **A baseline to beat.** A number alone means nothing. Beating the rule most teams start with ("5+ tutors built") is the claim.
 - **No LLM computes scores.** An LLM may only turn already-computed reasons into prose. Scores stay reproducible and explainable.
 
-All 5 tests pass as of today.
+All 12 tests pass as of Nov 23. They also cover the district calendars, the admin rule, and dates before school starts.
 
 ---
 
@@ -212,7 +284,8 @@ All 5 tests pass as of today.
 | Term | Plain meaning in this project |
 |---|---|
 | PQL | Product-qualified lead. A free account whose usage says it's ready for a sales conversation. Here: a free school scoring 60+. |
-| Health score | 0 to 100 for a paying school. Low means likely to leave. Planned. |
+| Health score | 0 to 100 for a paying school. Low means likely to leave. Below 70 is "At risk." |
+| District calendar | The school year a district actually runs: its own start, end and breaks. Each school's windows are counted on its own. |
 | Churn | A paying customer not renewing. |
 | Expansion | A paying customer buying more, like more seats. |
 | NRR | Net revenue retention. Revenue from last year's customers this year, counting expansion and churn, divided by what they paid last year. Over 100% means growth from existing customers. |
@@ -232,7 +305,7 @@ All 5 tests pass as of today.
 
 ### 30 seconds
 
-"I'm building a project called Kindling, aimed at the kind of motion Flint runs. Teachers adopt for free, and it watches usage to tell sales which free schools are actually ready to buy, and customer success which paying schools are slipping before renewal. The twist is it counts school days, not calendar days, so winter break doesn't look like churn. I test it on a simulated school year with hidden outcomes. The buying score is done and beats a simple baseline on precision. The churn side is next."
+"I'm building a project called Kindling, aimed at the kind of motion Flint runs. Teachers adopt for free, and it watches usage to tell sales which free schools are actually ready to buy, and customer success which paying schools are slipping before renewal. The twist is it counts school days, not calendar days, so winter break doesn't look like churn. I test it on a simulated school year with hidden outcomes. Both sides are built: the buying score is right 77% of the time, against 37% for a simple rule. The churn side catches 77% of churners at least 45 days before renewal, with zero false alarms on healthy schools."
 
 ### 2 minutes
 
@@ -242,9 +315,11 @@ I didn't have real data, so I wrote a simulator: 200 fake schools over a 2025-26
 
 The buying score is account-level and rules-based: how many teachers are active, whether their students are really using it, whether an admin showed up, and whether it's spreading. Every score comes with its top 3 reasons, so a rep knows what to say on the call.
 
-To test it, I replay the year every Monday using only data up to that day, then check against the hidden outcomes. Compared to the common 'built 5+ tutors' rule, precision went from 37% to 73%, with about a month of lead time. It catches 65% of buyers, which is under my 70% goal, and the misses are mostly schools where only two teachers ever used it.
+To test it, I replay the year every Monday using only data up to that day, then check against the hidden outcomes. Compared to the common 'built 5+ tutors' rule, precision went from 37% to 77%, with about four weeks of lead time. It catches 71% of buyers, just over my 70% goal. The misses are mostly schools where only two or three teachers ever used it.
 
-Next is the health score for renewals. That's where school days should really matter, since a calendar-based model would panic every December. Then n8n to route alerts to Slack, and a dashboard. I'd love to hear how you think about this at Flint."
+The health score is where school days earn their keep. A calendar-day model flags every healthy school at some point in the year, mostly around winter break. Kindling flags none of them, and still catches 77% of churners at least 45 days before renewal. I also gave every district its own calendar in a second simulation. One national calendar still false-alarms on 83% of healthy schools; district calendars bring that back to zero.
+
+Alerts go to Slack through n8n, with Claude drafting the first email from the computed reasons, and there's a dashboard. I'd love to hear how you think about this at Flint."
 
 ---
 
@@ -257,22 +332,27 @@ I don't have access to a real company's usage data, and I wouldn't want to use r
 Scores need to be the same every time, explainable, and testable on a backtest. An LLM scoring accounts would be hard to audit and costly to run across every school every week. In the rules, an LLM is only allowed to turn already-computed reasons into nicer sentences.
 
 **3. How do you know it works?**
-The backtest. It replays every Monday using only past data and checks against hidden outcomes. Tests make sure the scorer can't read the answers or see the future. It beats a simple baseline on precision (73% vs 37%). It's honest where it misses: 65% recall, under my 70% target.
+The backtest. It replays every Monday using only past data and checks against hidden outcomes. Tests make sure the scorer can't read the answers or see the future. The buying score beats a simple baseline on precision (77% vs 37%), with 71% recall, just over my 70% target. On churn: 0 false alarms vs 58 for a calendar-day model, while catching 77% of churners 45+ days out. It's honest about the cost: the calendar-day model catches more churners (95%), because it flags everyone.
 
 **4. What would change with real data?**
-Real event names and messier tracking. Real calendars that differ by district, so the school calendar would have to be per school, not one for everyone. Outcomes that depend on things usage can't see, like budget timing. I'd re-check the weights on a holdout period, and probably add firmographic enrichment through something like Clay.
+Real event names and messier tracking. Real calendars that differ by district. That part is built: each school's windows follow its own calendar, and it's tested in a second simulated world. In production the calendars have to come from somewhere, like district websites or asking the admin at onboarding. Outcomes depend on things usage can't see, like budget timing. Thresholds would be re-set on real outcomes with the sweep tool: tune on one semester, check on the next. Firmographic enrichment through Clay works by hand today.
 
 **5. How is this different from what Flint already does?**
 Honestly, I don't know your internals. I'd love to ask: how do you decide which schools sales talks to today, and how do you handle breaks in your churn signals?
 
 **6. Why rules instead of ML?**
-Reps trust a score they can explain, and rules give exact reasons. I also don't have real labeled data to train on. The plan includes a logistic regression on the same backtest as an honest comparison. If it clearly wins, that's worth knowing.
+Reps trust a score they can explain, and rules give exact reasons. I also don't have real labeled data to train on. I did run a logistic regression on the same backtest, trained on fall and tested on spring, as an honest comparison.
+- For buying, it gets more recall but much lower precision: 40% vs 70%.
+- For churn, it catches more churners, 82% vs 59%, but flags every healthy school. It doesn't know what a break is.
 
 **7. Why measure at the school level instead of the teacher level?**
 Schools buy, not teachers. One excited teacher is a user. Several teachers with real student use, plus an admin, is a buying account. The solo-star decoy exists to test exactly this.
 
 **8. What's the hardest part so far?**
-Being honest about results. For example, the school-days idea barely changed the buying score. It should matter much more for churn, but I haven't built that yet, so I can't claim it.
+Being honest about results, and checking the checker.
+- The school-days idea doesn't help the buying score; calendar windows do slightly better there. It proved itself on churn instead.
+- When I gave districts their own calendars, Kindling flagged 12 healthy Northeast schools on Sep 1. They start after Labor Day, so there was nothing to measure yet, and the scorer read an empty window as a collapse.
+- The fix was a rule, not a weight tweak: no health score until a school has 10 school days of data.
 
 ---
 
@@ -284,33 +364,42 @@ Write your answers first. Then open the answers below.
 2. Which parts of Kindling are built today, and which are only planned?
 3. What makes a solo_star school a decoy, and which part of the PQL score stops it from being flagged?
 4. The naive baseline flagged all 20 builders schools. Why, and what in Kindling's score handles them?
-5. Why does healthy_break_renewal exist, and why hasn't it been tested yet?
+5. Why does healthy_break_renewal exist, and what happened when it was tested?
 6. On a normal two weeks of school, how many school days are in a 14-calendar-day window? So when do the two window types disagree?
 7. A healthy school renews Jan 15, 2026. On Dec 1, a calendar-day model says activity is down 50%. Explain why, using the calendar.
 8. What is the difference between precision and recall? Give Kindling's PQL numbers for each.
 9. Why are the `stalled` schools in the simulator, if no score can tell them apart from buyers?
 10. Name two ways the project prevents cheating in the backtest, and what the test for each one does.
+11. In the district-calendar world, Kindling first flagged 12 healthy Northeast schools on Sep 1. Why, and what fixed it?
 
 <details><summary>Answers</summary>
 
-1. The PQL score ranks free schools by how ready they are to buy (0 to 100, Ready at 60+). The health score will rank paying schools by how likely they are to renew, so customer success can step in 45+ days early.
+1. The PQL score ranks free schools by how ready they are to buy (0 to 100, Ready at 60+). The health score ranks paying schools by how likely they are to renew (At risk below 70), so customer success can step in 45+ days early.
 
-2. Built: the calendar and simulator, the point-in-time features (school-day and calendar modes), the PQL score with reasons, the naive "5+ tutors" baseline, the PQL backtest with results, and the tests (all 5 pass). TASKS.md still shows Phase 1 unchecked, but the code exists. Planned: health score and its backtest, the API, Slack formatting, n8n workflow, Clay node, dashboard, HTML report, logistic regression comparison, README, demo video.
+2. Built:
+   - the scoring side: the simulator (plus district-calendar and admin-noise worlds), point-in-time features, both scores with reasons, both backtests with baselines;
+   - the comparisons: the logistic regression comparison, the three experiments;
+   - delivery: the API, three n8n workflows with Slack, the React and Streamlit dashboards, the HTML report, the README;
+   - 12 passing tests.
+
+   Not done: the UI fixes from the Nov 23 audit (in progress on the `ui` branch) and the demo video. Clay was deliberately left as a manual step.
 
 3. It has one very heavy teacher, so a user-level score would rank it near the top. But colleagues never follow, so it's a user, not a buying account. Kindling caps breadth points and gives points for several active and "aha" teachers, plus an admin. A lone teacher can't reach 60. Its best score in the backtest was 37.
 
 4. Builders create many tutors, so "built 5+ tutors" fires. But students barely use those tutors. Kindling scores student sessions (the "aha" teachers) instead of tutor counts, and subtracts 10 points when 20+ tutors exist with fewer sessions than tutors. Best builder score: 40.
 
-5. It checks that a churn model doesn't panic when a renewal comes right after a break, when recent usage naturally looks dead. It can't be tested yet because the health score and its backtest aren't built.
+5. It checks that a churn model doesn't panic when a renewal comes right after a break, when recent usage naturally looks dead. Tested: calendar windows flag all 12 at some point in the year; school-day windows flag none.
 
 6. Exactly 10. So they agree on normal weeks and disagree only when the window includes a break (or summer).
 
 7. The window Nov 18 to Dec 1 includes Thanksgiving break (Nov 24 to 28), so it has only 5 school days. The window before (Nov 4 to 17) has 10. Same usage per school day, half the school days, so it looks like a 50% drop. The school-day window compares 10 school days to 10 school days and sees no change.
 
-8. Precision: of the flagged schools, how many converted. Recall: of the schools that converted, how many were flagged first. Kindling: 73% precision (22 of 30), 65% recall (22 of 34). The naive rule: 37% and 100%.
+8. Precision: of the flagged schools, how many converted. Recall: of the schools that converted, how many were flagged first. Kindling: 77% precision (24 of 31), 71% recall (24 of 34). The naive rule: 37% and 100%.
 
-9. They're the realistic false positive. Real schools sometimes look ready and still don't buy because of budgets or leadership changes. Including them keeps precision honest instead of too good to be true. All 8 of Kindling's wrong flags were stalled schools.
+9. They're the realistic false positive. Real schools sometimes look ready and still don't buy because of budgets or leadership changes. Including them keeps precision honest instead of too good to be true. All 7 of Kindling's wrong flags were stalled schools.
 
 10. Any two of these. The scorer never reads the truth table: a test scans engine files and fails if they mention `truth`. No future data: a test deletes all events after the as-of date and checks the features don't change. Also, a flag counts only if it comes before the conversion, and weights can't be secretly tuned on results.
+
+11. Northeast schools start Sep 2, so on Sep 1 both their current and previous 10-school-day windows were empty. The scorer treats "no data" as neutral, which adds up to 52.5, under the 70 line. The fix: don't score health until a school's year has one full window of school days. It didn't change the default world, where every Monday from Sep 1 already had 11 school days.
 
 </details>
