@@ -3,8 +3,8 @@
   "title": "PQL: rules vs logistic regression",
   "source": "results/pql_lr_comparison.md",
   "note": "Trained on Mondays \u2264 2025-12-31 (fall). Tested on Mondays > 2025-12-31 (spring). LR uses the same point-in-time features; weights were not hand-tuned.",
-  "generated_at": "2026-11-24T00:40:59+00:00",
-  "commit": "1235173",
+  "generated_at": "2026-11-24T01:12:42+00:00",
+  "commit": "814a258",
   "replay": {
     "start": "2025-09-01",
     "end": "2026-07-27"

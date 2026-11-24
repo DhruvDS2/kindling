@@ -3,8 +3,8 @@
   "title": "Health backtest",
   "source": "results/health_backtest.md",
   "note": "Replayed every Monday from 2025-09-01 to 2026-07-31. A school is flagged the first Monday its score drops below 70. A churner flag counts as early if it comes \u226545 days before renewal. False alarms are healthy schools incorrectly flagged at risk.",
-  "generated_at": "2026-11-24T00:40:57+00:00",
-  "commit": "1235173",
+  "generated_at": "2026-11-24T01:12:40+00:00",
+  "commit": "814a258",
   "replay": {
     "start": "2025-09-01",
     "end": "2026-07-27"

@@ -3,8 +3,8 @@
   "title": "District calendars backtest",
   "source": "results/district_calendar_backtest.md",
   "note": "A second simulated world (`python -m kindling.simulate --calendars district`): same schools and archetypes, but each school follows its district's calendar (different start and end dates, February and April vacations in the Northeast, early-March spring break in the Southwest). Scoring rules and thresholds are unchanged from the main backtest.",
-  "generated_at": "2026-11-24T00:41:01+00:00",
-  "commit": "1235173",
+  "generated_at": "2026-11-24T01:12:45+00:00",
+  "commit": "814a258",
   "replay": {
     "start": "2025-09-01",
     "end": "2026-07-27"

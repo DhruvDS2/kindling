@@ -3,8 +3,8 @@
   "title": "PQL run 3: lower threshold for schools with an admin",
   "source": "results/pql_admin_threshold.md",
   "note": "Run 2 is the headline PQL backtest: Ready at score \u2265 60. Run 3 keeps that rule and adds one: a school where an admin has signed up is also Ready at \u2265 40. The aim is the quiet converters run 2 misses (2\u20133 teachers, lighter use). Weights unchanged; the 40 comes from reasoning about the quiet-converter profile (see config.py), not from these results.",
-  "generated_at": "2026-11-24T00:41:03+00:00",
-  "commit": "1235173",
+  "generated_at": "2026-11-24T01:12:47+00:00",
+  "commit": "814a258",
   "replay": {
     "start": "2025-09-01",
     "end": "2026-07-27"

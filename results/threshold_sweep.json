@@ -3,8 +3,8 @@
   "title": "Threshold sweep",
   "source": "results/threshold_sweep.md",
   "note": "Data: `data/kindling.duckdb`. Each threshold is picked on fall Mondays (\u2264 2025-12-31) and reported on spring Mondays. On synthetic data this is a dry run; config.py is not changed.",
-  "generated_at": "2026-11-24T00:41:05+00:00",
-  "commit": "1235173",
+  "generated_at": "2026-11-24T01:12:49+00:00",
+  "commit": "814a258",
   "replay": {
     "start": "2025-09-01",
     "end": "2026-07-27"
