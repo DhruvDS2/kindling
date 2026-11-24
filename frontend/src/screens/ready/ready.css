@@ -1,0 +1,106 @@
+/* Ready to buy (and the reason line the Monday brief shares). Tokens only (DESIGN.md §7). */
+
+.ready {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: var(--size-content);
+}
+
+/* Summary: one sentence for the rep, numbers at full ink. */
+.ready-head { display: flex; flex-direction: column; gap: var(--space-0-5); }
+.ready-summary {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  letter-spacing: var(--tracking-lg);
+  color: var(--text-secondary);
+}
+.ready-summary strong { font-weight: var(--weight-medium); color: var(--text-primary); }
+.ready-note {
+  margin: 0;
+  max-width: 80ch;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  letter-spacing: var(--tracking-sm);
+  color: var(--text-tertiary);
+}
+
+/* A school id in the URL that isn't on this list. */
+.ready-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  padding: var(--space-1) 0;
+  border-top: var(--size-hairline) solid var(--border-hairline);
+  border-bottom: var(--size-hairline) solid var(--border-hairline);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+}
+.ready-notice > :last-child { margin-left: auto; }
+
+.ready-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5) var(--space-2); }
+.ready-keys {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-0-5);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+.ready-keys__gap { margin-left: var(--space-1); }
+@media (max-width: 1100px) { .ready-keys { display: none; } }
+
+/* Table cells. */
+.ready-cell2 { display: flex; flex-direction: column; min-width: 0; }
+.ready-sub {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  letter-spacing: var(--tracking-sm);
+  color: var(--text-tertiary);
+}
+.ready-name { display: flex; align-items: baseline; gap: var(--space-1); min-width: 0; }
+.ready-name > .k-truncate { flex: 0 1 auto; }
+.ready-rank { color: var(--text-tertiary); }
+.ready-score { display: flex; flex-direction: column; gap: var(--space-0-5); min-width: 0; }
+.ready-rule {
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--status-ready-fg);
+}
+
+/* "New this week": a quiet word after the name, never a badge. */
+.ready-new {
+  flex: none;
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+/* On the Ready table the marker leads the place line, so it never cuts the school name short. */
+.ready-subline { display: flex; align-items: baseline; gap: var(--space-0-5); min-width: 0; }
+.ready-subline > .k-truncate { flex: 0 1 auto; }
+.ready-subline .ready-new { font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-secondary); }
+
+/* Why: the top reasons as one running line, points in quiet tabular figures. */
+.ready-why {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  letter-spacing: var(--tracking-sm);
+  color: var(--text-secondary);
+}
+.ready-why--2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+.ready-why--1 { display: block; white-space: nowrap; text-overflow: ellipsis; }
+.ready-why--empty { color: var(--text-tertiary); }
+.ready-why__pts { color: var(--text-tertiary); white-space: nowrap; }
+.ready-why__sep { color: var(--text-tertiary); }
+
+/* Text cells line up with the 20px first line of the name cell. */
+.ready-pad-sm { padding-top: var(--size-hairline); }

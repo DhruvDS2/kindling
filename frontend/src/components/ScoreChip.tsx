@@ -1,43 +1,23 @@
+import { StatusPill, statusTone } from '../design';
 import type { ReasonDetail } from '../types';
 
 interface Props {
   score: number;
+  /** Kept for callers; the tone comes from the status word. */
   type: 'pql' | 'health';
   status?: string;
 }
 
-const MONO = 'JetBrains Mono, monospace';
-
-/** Chip colors by status word. Color never carries meaning alone: the word is always printed. */
-function chipColors(type: 'pql' | 'health', status?: string): { bg: string; fg: string } {
-  if (type === 'pql') {
-    return status === 'Ready'
-      ? { bg: 'var(--ember-chip-bg)', fg: 'var(--ember-chip-text)' }
-      : { bg: 'var(--nav)', fg: 'var(--muted)' };
-  }
-  if (status === 'At risk') return { bg: 'var(--risk-chip-bg)', fg: 'var(--risk)' };
-  if (status === 'Healthy') return { bg: 'color-mix(in srgb, var(--steady) 11%, var(--card))', fg: 'var(--steady)' };
-  return { bg: 'var(--nav)', fg: 'var(--muted)' };
-}
-
-/** `84 · Ready`, `38 · At risk`, `91 · Healthy`. The status word comes from the API; with no status, only the score. */
-export default function ScoreChip({ score, type, status }: Props) {
-  const { bg, fg } = chipColors(type, status);
+/**
+ * `84 · Ready`, `38 · At risk`, `91 · Healthy` on the status color (DESIGN.md §5: Ready is ochre,
+ * never ember). The status word comes from the API and is always printed; with no status, only the score.
+ * New screens use ScoreMeter instead; this stays for the screens that haven't moved yet.
+ */
+export default function ScoreChip({ score, status }: Props) {
   return (
-    <span style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      padding: '5px 10px',
-      borderRadius: 6,
-      background: bg,
-      color: fg,
-      fontSize: 13,
-      fontFamily: MONO,
-      fontWeight: 500,
-      whiteSpace: 'nowrap',
-    }}>
-      {status ? `${score} · ${status}` : score}
-    </span>
+    <StatusPill tone={statusTone(status)}>
+      <span className="k-num">{score}</span>{status ? ` · ${status}` : ''}
+    </StatusPill>
   );
 }
 
@@ -54,8 +34,8 @@ export function topReasons(school: { reasons: string[]; reason_details: ReasonDe
 }
 
 /**
- * The reason list from DESIGN.md: the school's top reasons, each with the points it earned
- * out of the most it could earn. A penalty (no maximum) shows as a negative number.
+ * The school's top reasons, each with the points it earned out of the most it could earn.
+ * A penalty (no maximum) shows as a negative number.
  */
 export function ReasonList({ reasons, empty = 'No scoring signals in this window', wrap = true }: {
   reasons: ReasonDetail[];
@@ -63,33 +43,28 @@ export function ReasonList({ reasons, empty = 'No scoring signals in this window
   wrap?: boolean;
 }) {
   if (reasons.length === 0) {
-    return <span style={{ fontSize: 13, color: 'var(--muted)' }}>{empty}</span>;
+    return <span className="k-text-sm k-tertiary">{empty}</span>;
   }
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-0-5)' }}>
       {reasons.map(r => {
         const known = Number.isFinite(r.points);
         const penalty = known && r.max_points <= 0;
         return (
-          <div key={r.text} style={{ display: 'flex', alignItems: 'baseline', gap: 10, minWidth: 0 }}>
+          <div key={r.text} style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-1-5)', minWidth: 0 }}>
             <span
+              className="k-num k-text-label"
               title={known ? (penalty ? `${fmtPoints(r.points)} points (penalty)` : `${fmtPoints(r.points)} of ${r.max_points} points`) : undefined}
-              style={{ fontFamily: MONO, fontSize: 12, width: 52, flexShrink: 0, textAlign: 'right', whiteSpace: 'nowrap' }}
+              style={{ width: 'var(--space-6)', flexShrink: 0, textAlign: 'right', whiteSpace: 'nowrap' }}
             >
               {known ? (
                 <>
-                  <span style={{ color: penalty ? 'var(--risk)' : 'var(--ink)', fontWeight: 500 }}>{fmtPoints(r.points)}</span>
-                  {!penalty && <span style={{ color: 'var(--muted)' }}>/{r.max_points}</span>}
+                  <span className="k-primary k-medium">{fmtPoints(r.points)}</span>
+                  {!penalty && <span className="k-tertiary">/{r.max_points}</span>}
                 </>
               ) : null}
             </span>
-            <span style={{
-              fontSize: 13,
-              color: 'var(--body)',
-              lineHeight: 1.4,
-              minWidth: 0,
-              ...(wrap ? {} : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
-            }}>
+            <span className={['k-text-sm', 'k-secondary', wrap ? '' : 'k-truncate'].join(' ').trim()}>
               {r.text}
             </span>
           </div>
