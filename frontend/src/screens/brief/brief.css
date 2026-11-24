@@ -1,0 +1,86 @@
+/* Monday brief. Structure from alignment, hairlines and whitespace; no boxes. Tokens only. */
+
+.brief {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: var(--size-content);
+}
+.brief-top { display: flex; flex-direction: column; gap: var(--space-4); }
+
+/* The narrative line: the week in one sentence, its numbers at full ink. */
+.brief-lede {
+  margin: 0;
+  max-width: 72ch;
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  letter-spacing: var(--tracking-lg);
+  color: var(--text-secondary);
+  text-wrap: pretty;
+}
+.brief-lede strong { font-weight: var(--weight-medium); color: var(--text-primary); }
+
+/* 3B: four numbers on one baseline, each under its own hairline, with one context line. */
+.brief-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-4);
+}
+.brief-stats > .k-stat {
+  padding-top: var(--space-1-5);
+  border-top: var(--size-hairline) solid var(--border-hairline);
+}
+@media (max-width: 1100px) { .brief-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* A quiet, focusable term with its definition in a tooltip. */
+.brief-term {
+  border-radius: var(--radius-1);
+  text-decoration: underline dotted var(--border-strong);
+  text-underline-offset: var(--space-0-5);
+  cursor: help;
+}
+
+/* Sections: a title row, then the table on the page. */
+.brief-section { display: flex; flex-direction: column; gap: var(--space-1); }
+.brief-section__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.brief-section__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  letter-spacing: var(--tracking-lg);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+.brief-section__sub {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  letter-spacing: var(--tracking-sm);
+  color: var(--text-tertiary);
+}
+
+.brief-renews { white-space: nowrap; color: var(--text-secondary); }
+.brief-renews__arr { color: var(--text-tertiary); }
+
+/* The last automation run: one quiet line under a hairline. */
+.brief-run {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  padding-top: var(--space-2);
+  border-top: var(--size-hairline) solid var(--border-hairline);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  letter-spacing: var(--tracking-sm);
+  color: var(--text-secondary);
+}
+.brief-run__label { color: var(--text-tertiary); }
+.brief-run__when { color: var(--text-primary); }
+.brief-run__fail { color: var(--status-risk-fg); }
+.brief-run > :last-child { margin-left: auto; }
